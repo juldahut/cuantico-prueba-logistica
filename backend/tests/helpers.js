@@ -3,9 +3,11 @@
 const db = require('../src/models');
 
 const { sequelize } = db;
+const crypto = require('crypto');
 const { hashPassword, issueToken } = require('../src/services/auth.service');
 
-const TEST_PASSWORD = 'clave-de-prueba-123';
+// Aleatoria en cada corrida: ninguna clave queda escrita en el repositorio.
+const TEST_PASSWORD = crypto.randomBytes(18).toString('base64url');
 
 // Vacia las tablas entre pruebas. TRUNCATE no dispara el trigger append-only
 // de cost_calculations (es por fila, para UPDATE y DELETE).

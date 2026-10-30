@@ -1,0 +1,4 @@
+# Falso positivo ya corregido: clave fija de tests (no era una credencial real)
+# en un commit de la rama de la fase 3. Desde el commit siguiente la clave de
+# tests se genera al azar en cada corrida.
+95ce485fc0a73205187ca037aad0fe603b5f7e44:backend/tests/helpers.js:generic-api-key:8
