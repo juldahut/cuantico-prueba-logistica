@@ -2,6 +2,9 @@ require('dotenv').config();
 
 const base = {
   dialect: 'postgres',
+  // Sesion en UTC: las fechas se guardan y comparan en UTC sin depender de la
+  // zona del servidor.
+  timezone: '+00:00',
   // sequelize-cli no trackea seeders por defecto (a diferencia de las
   // migraciones): sin esto, "db:seed:all" vuelve a intentar correr un
   // seeder ya aplicado y revienta por una restriccion unica -- lo que
