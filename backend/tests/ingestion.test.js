@@ -2,13 +2,25 @@
 
 const request = require('supertest');
 const app = require('../src/app');
-const { db, sequelize, resetDb, createMerchant, deliveryEvents, DROPOFF } = require('./helpers');
+const {
+  db,
+  sequelize,
+  resetDb,
+  createMerchant,
+  createUser,
+  deliveryEvents,
+  DROPOFF,
+} = require('./helpers');
 
 let merchant;
+let ingest;
+let admin;
 
 beforeEach(async () => {
   await resetDb();
   ({ merchant } = await createMerchant());
+  ingest = await createUser({ role: 'ingesta' });
+  admin = await createUser({ role: 'admin' });
 });
 
 afterAll(async () => {
@@ -16,7 +28,7 @@ afterAll(async () => {
 });
 
 function post(event) {
-  return request(app).post('/events').send(event);
+  return request(app).post('/events').set(ingest.auth).send(event);
 }
 
 async function postAll(events) {
@@ -384,28 +396,29 @@ describe('POST /events', () => {
 });
 
 describe('GET /anomalies', () => {
-  beforeEach(async () => {
-    await resetDb();
-    ({ merchant } = await createMerchant());
-  });
-
   it('lista las anomalias abiertas, filtrables por codigo', async () => {
     const events = deliveryEvents(merchant.id);
     await post(events[4]); // MISSING_PICKUP
     await post({ ...events[0], eventId: 'D-1-e1' });
     await post({ ...events[0], address: 'otra direccion' }); // EVENT_CONFLICT
 
-    const all = await request(app).get('/anomalies');
+    const all = await request(app).get('/anomalies').set(admin.auth);
     expect(all.status).toBe(200);
     expect(all.body.data.map((a) => a.code).sort()).toEqual(['EVENT_CONFLICT', 'MISSING_PICKUP']);
 
-    const filtered = await request(app).get('/anomalies').query({ code: 'EVENT_CONFLICT' });
+    const filtered = await request(app)
+      .get('/anomalies')
+      .set(admin.auth)
+      .query({ code: 'EVENT_CONFLICT' });
     expect(filtered.body.data).toHaveLength(1);
     expect(filtered.body.data[0]).not.toHaveProperty('dedupKey');
   });
 
   it('valida el filtro de codigo', async () => {
-    const res = await request(app).get('/anomalies').query({ code: "x' OR 1=1 --" });
+    const res = await request(app)
+      .get('/anomalies')
+      .set(admin.auth)
+      .query({ code: "x' OR 1=1 --" });
     expect(res.status).toBe(422);
   });
 });
