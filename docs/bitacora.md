@@ -17,6 +17,8 @@ Registro breve por fase. Solo lo que realmente pasó.
 - F4: quitar un delimitador con `split(...).join("")` una sola vez no basta: el texto lo puede reconstruir anidándolo. Es más simple prohibir los caracteres que lo forman.
 - F4: si el modelo puede pasar las fechas a la tool de totales, la tool las devuelve y quedan "verificadas". El servidor debe resolver el periodo.
 
+- F6: dotenv 18 imprime un aviso al cargar el .env; se silencia con `quiet: true` para no ensuciar logs ni tests.
+
 ## Consultas
 - F1: el borde "8:00 p.m. a 6:00 a.m." no está fijado en el enunciado; se toma [20:00, 06:00).
 
