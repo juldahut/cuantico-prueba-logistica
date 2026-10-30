@@ -97,7 +97,8 @@ describe('GET /search', () => {
   });
 
   it('"%" y "_" no son comodines: no devuelven todo', async () => {
-    expect((await search('%')).body.data).toEqual([]);
+    // Solo la direccion que contiene un % literal, no las 28 entregas.
+    expect((await search('%')).body.data.map((d) => d.deliveryId)).toEqual(['S-2']);
     expect((await search('_')).body.data).toEqual([]);
     expect((await search('%%')).body.data).toEqual([]);
   });

@@ -1,14 +1,16 @@
 'use strict';
 
+const { Op } = require('sequelize');
 const db = require('../models');
+const { merchantFilter } = require('./scope');
 
 const MAX_ROWS = 100;
 
-async function listAnomalies({ code, state = 'open' } = {}) {
-  const where = {};
+async function listAnomalies(user, { code, state = 'open' } = {}) {
+  const where = { ...merchantFilter(user) };
   if (code) where.code = code;
   if (state === 'open') where.resolvedAt = null;
-  if (state === 'resolved') where.resolvedAt = { [db.Sequelize.Op.ne]: null };
+  if (state === 'resolved') where.resolvedAt = { [Op.ne]: null };
 
   return db.Anomaly.findAll({
     where,

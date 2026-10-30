@@ -18,10 +18,24 @@ Ver `docs/adr/`. Resumen en esta sección al cerrar el proyecto.
 ## Requisitos de operaciones: qué pidieron, qué hice y por qué
 | Pedido | Riesgo | Qué hice |
 | --- | --- | --- |
-| Buscador con SQL concatenado | SQL injection | Pendiente |
+| Buscador con SQL concatenado | SQL injection: con `texto = "x' OR 1=1 --"` la consulta sugerida devuelve o borra todo | `GET /search` usa el ORM con valores parametrizados, escapa `%`, `_` y la barra invertida para que se busquen literales, limita `q` a 100 caracteres y la respuesta a 20 filas, y filtra por los comercios del usuario. Tests con payloads de inyección. |
 | Notas del comercio tal cual en el prompt | Prompt injection indirecta | Pendiente |
-| Sin control de acceso | Fuga entre comercios | Pendiente |
+| Sin control de acceso | Cualquiera lee la facturación de todos los comercios (y el agente se vuelve un canal de fuga) | Login con JWT; el rol y los comercios del usuario se leen de la base en cada petición. Roles: `admin` (todo), `operaciones` (solo sus comercios: 403 en otro comercio, 404 en entregas ajenas) e `ingesta` (solo `POST /events`). |
 | Credenciales y API key en el código | Filtración de secretos | Pendiente |
+
+## Endpoints
+| Método | Ruta | Rol |
+| --- | --- | --- |
+| POST | `/auth/login` | público (rate limit) |
+| POST | `/events` | ingesta, admin |
+| GET | `/merchants` | admin, operaciones |
+| GET | `/merchants/:id/totals?from=YYYY-MM-DD&to=YYYY-MM-DD` | admin, operaciones (su comercio) |
+| GET | `/couriers/:id/status-counts` | admin, operaciones (solo cuenta sus comercios) |
+| GET | `/deliveries/:id/cost-audit` | admin, operaciones (su comercio) |
+| GET | `/search?q=` | admin, operaciones (sus comercios) |
+| GET | `/anomalies?code=&state=open|resolved|all` | admin, operaciones (sus comercios) |
+
+Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Tienda La 80), `ops.farmacia@cuantico.test` (Farmacia Central) e `ingesta@cuantico.test`. La clave es la de `DEMO_USERS_PASSWORD` en tu `.env`; no está en el código.
 
 ## Supuestos
 Cálculo de costo (`backend/src/domain`, reglas `v1`):
@@ -44,6 +58,7 @@ Ingesta (`POST /events`):
 - Se usa la tarifa vigente en el instante del evento terminal (o del último evento si la entrega sigue en curso). Sin tarifa vigente → el evento se guarda y queda la anomalía `NO_TARIFF`.
 - Una transición fuera de orden en el tiempo (p. ej. `en_ruta` después de `entregada`) no se rechaza: el evento ya ocurrió. Queda como anomalía `INVALID_TRANSITION`. Saltarse etapas (p. ej. `creada` → `entregada`) sí está permitido: el enunciado no exige registrar todos los estados.
 - Los `eventId` y `deliveryId` son globales: los emite un único sistema de flota confiable, no cada comercio. Por eso la ingesta será un rol de servicio (fase 3), no un usuario de comercio.
+- Totales por comercio: cuentan las entregas cuyo evento terminal cae en [desde, hasta) según la zona del comercio. Las que no tienen monto (incompletas o inconsistentes) cuentan, pero no suman.
 - Monedas: cada tarifa define la suya (COP, MXN, CLP en los datos de ejemplo) y los montos están en su unidad mínima. No se suman montos de monedas distintas.
 - **Supuesto abierto para negocio: entregada y fallida en la misma entrega.** El costo queda `inconsistent` (estado de la entrega `inconsistente`), sin monto, y la ingesta lo registra como anomalía visible; nunca se descarta. Negocio debe definir cuál prevalece.
 
