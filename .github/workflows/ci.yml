@@ -63,7 +63,7 @@ jobs:
       - run: npm audit --audit-level=high
 
   frontend:
-    name: Frontend (lint + build)
+    name: Frontend (lint + tests + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -71,14 +71,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        if: hashFiles('frontend/package.json') != ''
         with:
           node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-        if: hashFiles('frontend/package-lock.json') != ''
-      - run: npm run lint --if-present
-        if: hashFiles('frontend/package.json') != ''
-      - run: npm test --if-present
-        if: hashFiles('frontend/package.json') != ''
-      - run: npm run build --if-present
-        if: hashFiles('frontend/package.json') != ''
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
