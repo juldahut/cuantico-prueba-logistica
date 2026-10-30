@@ -108,4 +108,46 @@ describe('ChatPage', () => {
 
     await vi.waitFor(() => expect(onLogout).toHaveBeenCalled());
   });
+
+  it('envia como historial solo las ultimas 10 preguntas del usuario', async () => {
+    const fetchMock = vi.fn(() =>
+      jsonResponse(200, { reply: 'respuesta del asistente', verified: true, toolCalls: [] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderChat();
+
+    for (let i = 1; i <= 12; i += 1) {
+      await userEvent.type(screen.getByLabelText('Mensaje'), `pregunta ${i}{Enter}`);
+      await screen.findAllByText('respuesta del asistente');
+    }
+
+    const { history, message } = JSON.parse(fetchMock.mock.calls[11][1].body);
+    expect(message).toBe('pregunta 12');
+    expect(history).toHaveLength(10);
+    expect(history.every((h) => h.role === 'user')).toBe(true);
+    expect(history[0].content).toBe('pregunta 2');
+    expect(history.at(-1).content).toBe('pregunta 11');
+  });
+
+  it('al reintentar conserva el historial previo sin la pregunta fallida', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(jsonResponse(200, { reply: 'uno', verified: true, toolCalls: [] }))
+      .mockReturnValueOnce(jsonResponse(502, { error: { message: 'No disponible.' } }))
+      .mockReturnValueOnce(jsonResponse(200, { reply: 'dos', verified: true, toolCalls: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderChat();
+
+    await userEvent.type(screen.getByLabelText('Mensaje'), 'primera{Enter}');
+    await screen.findByText('uno');
+    await userEvent.type(screen.getByLabelText('Mensaje'), 'segunda{Enter}');
+    await screen.findByText('No disponible.');
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await screen.findByText('dos');
+
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body).history).toEqual([
+      { role: 'user', content: 'primera' },
+    ]);
+    expect(screen.getAllByText('segunda')).toHaveLength(1);
+  });
 });

@@ -39,11 +39,13 @@ export default function ChatPage({ token, user, onLogout }) {
     const question = text.trim();
     if (!question || loading) return;
 
-    // Historial: solo texto de los ultimos turnos; el servidor no acepta mas.
+    // Historial: solo las ultimas preguntas del usuario. El servidor no acepta
+    // turnos del asistente enviados por el cliente.
     const base = retrying ? messages.slice(0, -1) : messages;
     const history = base
+      .filter((m) => m.role === 'user' && typeof m.text === 'string')
       .slice(-MAX_HISTORY)
-      .map((m) => ({ role: m.role, content: m.text.slice(0, 2000) }));
+      .map((m) => ({ role: 'user', content: m.text.slice(0, MAX_MESSAGE) }));
 
     setMessages([...base, { id: newId(), role: 'user', text: question }]);
     setDraft('');
@@ -58,7 +60,7 @@ export default function ChatPage({ token, user, onLogout }) {
         {
           id: newId(),
           role: 'assistant',
-          text: res.reply,
+          text: typeof res.reply === 'string' ? res.reply : '',
           verified: res.verified,
           toolCalls: res.toolCalls,
         },

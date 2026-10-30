@@ -39,8 +39,14 @@ function detectPeriod(question) {
 
 // Pares (tool_use, resultado) del turno actual, en orden.
 function currentTurn(messages) {
-  const start = messages.findLastIndex((m) => m.role === 'user' && typeof m.content === 'string');
-  const question = messages[start].content;
+  // La pregunta es el ultimo mensaje de usuario con texto (no resultados de
+  // tools); si trae contexto previo, la pregunta es su ultimo bloque.
+  const isQuestion = (m) =>
+    m.role === 'user' &&
+    (typeof m.content === 'string' || m.content.some((b) => b.type === 'text'));
+  const start = messages.findLastIndex(isQuestion);
+  const { content } = messages[start];
+  const question = typeof content === 'string' ? content : content.at(-1).text;
   const results = [];
   for (let i = start + 1; i < messages.length; i += 1) {
     const m = messages[i];
