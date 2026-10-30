@@ -56,6 +56,13 @@ describe('POST /auth/login', () => {
       .send({ email: ['a@b.c'], password: 1 });
     expect(res.status).toBe(400);
   });
+
+  it('rechaza claves de mas de 72 bytes (limite de bcrypt)', async () => {
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ email: 'a@prueba.test', password: 'ñ'.repeat(37) });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('autenticacion en rutas protegidas', () => {

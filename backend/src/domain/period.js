@@ -44,13 +44,19 @@ function offsetMs(utcMs, timeZone) {
   return wall - Math.floor(utcMs / 1000) * 1000;
 }
 
-// Instante UTC de la medianoche local. Se corrige una vez por si el offset
-// cambia entre la estimacion y el resultado (horario de verano).
+// Primer instante UTC del dia local. Se prueban los offsets vigentes medio dia
+// antes y despues (cubre cualquier cambio de horario cerca de la medianoche) y
+// se queda el menor instante cuya hora local ya es de ese dia. Asi, si la
+// medianoche no existe (Santiago salta de 00:00 a 01:00), el dia empieza a la
+// 01:00; y si se repite, cuenta la primera vez.
 function localMidnightToUtc(wallMs, timeZone) {
-  let utc = wallMs - offsetMs(wallMs, timeZone);
-  const corrected = wallMs - offsetMs(utc, timeZone);
-  if (corrected !== utc) utc = corrected;
-  return utc;
+  const halfDay = DAY_MS / 2;
+  const candidates = [
+    wallMs - offsetMs(wallMs - halfDay, timeZone),
+    wallMs - offsetMs(wallMs + halfDay, timeZone),
+  ];
+  const valid = candidates.filter((utc) => utc + offsetMs(utc, timeZone) >= wallMs);
+  return Math.min(...valid);
 }
 
 // Rango [desde, hasta) en fechas locales del comercio, convertido a UTC para

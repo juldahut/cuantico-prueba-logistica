@@ -192,6 +192,90 @@ describe('GET /couriers/:id/status-counts', () => {
       404,
     );
   });
+
+  it('operaciones recibe 404 si el mensajero no tiene entregas en sus comercios', async () => {
+    const onlyB = await db.Courier.create({ name: 'Mensajero solo B' });
+    await ingestDelivery({
+      id: 'B-Z',
+      merchantId: merchantB.id,
+      courierId: onlyB.id,
+      endAt: '2026-01-20T19:00:00Z',
+    });
+
+    const res = await request(app).get(`/couriers/${onlyB.id}/status-counts`).set(opsA.auth);
+
+    expect(res.status).toBe(404);
+    expect(JSON.stringify(res.body)).not.toMatch(/solo B/);
+  });
+
+  it('ids fuera del rango de enteros responden 422, no 500', async () => {
+    expect(
+      (await request(app).get('/couriers/99999999999/status-counts').set(admin.auth)).status,
+    ).toBe(422);
+    expect(
+      (
+        await request(app)
+          .get('/merchants/99999999999/totals')
+          .query({ from: '2026-01-15', to: '2026-01-16' })
+          .set(admin.auth)
+      ).status,
+    ).toBe(422);
+  });
+});
+
+describe('totales: entregas sin monto y varias monedas', () => {
+  let merchantC;
+
+  beforeAll(async () => {
+    let tariff;
+    ({ merchant: merchantC, tariff } = await createMerchant({ name: 'Comercio C' }));
+    // Cambio de tarifa a mitad del dia: COP hasta las 20:00Z, USD desde ahi.
+    await tariff.update({ validTo: new Date('2026-01-15T20:00:00Z') });
+    await db.Tariff.create({
+      merchantId: merchantC.id,
+      baseAmount: 500,
+      perKmAmount: 100,
+      currency: 'USD',
+      validFrom: new Date('2026-01-15T20:00:00Z'),
+    });
+    const c = merchantC.id;
+    await ingestDelivery({
+      id: 'C-1',
+      merchantId: c,
+      courierId: courier.id,
+      endAt: '2026-01-15T19:00:00Z',
+    });
+    await ingestDelivery({
+      id: 'C-2',
+      merchantId: c,
+      courierId: courier.id,
+      endAt: '2026-01-15T21:00:00Z',
+    });
+    // Entregada sin recogida: cuenta como entrega, pero no suma.
+    await ingestEvent({
+      eventId: 'C-3-4',
+      deliveryId: 'C-3',
+      merchantId: c,
+      type: 'entregada',
+      occurredAt: '2026-01-15T22:00:00Z',
+      location: DROPOFF,
+    });
+  });
+
+  it('suma por moneda y cuenta las entregas sin monto sin sumarlas como 0', async () => {
+    const res = await request(app)
+      .get(`/merchants/${merchantC.id}/totals`)
+      .query({ from: '2026-01-15', to: '2026-01-16' })
+      .set(admin.auth);
+
+    expect(res.body.deliveries).toBe(3);
+    expect(res.body.byCostStatus).toEqual({ calculated: 2, incomplete: 1 });
+    // 500 + 1112 m x 100/km = 611.2 -> 611
+    expect(res.body.totals).toEqual([
+      { currency: 'COP', amount: 6334 },
+      { currency: 'USD', amount: 611 },
+    ]);
+  });
 });
 
 describe('GET /deliveries/:id/cost-audit', () => {

@@ -32,6 +32,30 @@ describe('localDateRangeToUtc: rango [desde, hasta) en fechas locales del comerc
     );
   });
 
+  it('Santiago: el 6 de septiembre la medianoche no existe y el dia empieza a la 01:00', () => {
+    // 00:00 -04 salta a 01:00 -03 (04:00Z). El dia anterior termina ahi mismo.
+    expect(localDateRangeToUtc('2026-09-06', '2026-09-07', 'America/Santiago').fromUtc).toBe(
+      '2026-09-06T04:00:00.000Z',
+    );
+    expect(localDateRangeToUtc('2026-09-05', '2026-09-06', 'America/Santiago').toUtc).toBe(
+      '2026-09-06T04:00:00.000Z',
+    );
+  });
+
+  it('Santiago: al volver al horario de invierno el dia empieza en su unica medianoche', () => {
+    // 2026-04-05: a las 00:00 -03 (03:00Z) el reloj vuelve a las 23:00 del 4.
+    expect(localDateRangeToUtc('2026-04-05', '2026-04-06', 'America/Santiago').fromUtc).toBe(
+      '2026-04-05T04:00:00.000Z',
+    );
+  });
+
+  it('Nueva York al atrasar la hora en noviembre', () => {
+    expect(localDateRangeToUtc('2026-11-01', '2026-11-02', 'America/New_York')).toEqual({
+      fromUtc: '2026-11-01T04:00:00.000Z',
+      toUtc: '2026-11-02T05:00:00.000Z',
+    });
+  });
+
   it('Nueva York cruzando el cambio de horario', () => {
     // 8 de marzo de 2026: a las 02:00 pasa de EST (UTC-5) a EDT (UTC-4).
     expect(localDateRangeToUtc('2026-03-08', '2026-03-09', 'America/New_York')).toEqual({

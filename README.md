@@ -35,7 +35,7 @@ Ver `docs/adr/`. Resumen en esta sección al cerrar el proyecto.
 | GET | `/search?q=` | admin, operaciones (sus comercios) |
 | GET | `/anomalies?code=&state=` (open, resolved o all) | admin, operaciones (sus comercios) |
 
-Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Tienda La 80), `ops.farmacia@cuantico.test` (Farmacia Central) e `ingesta@cuantico.test`. La clave es la de `DEMO_USERS_PASSWORD` en tu `.env`; no está en el código.
+Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Tienda La 80), `ops.farmacia@cuantico.test` (Farmacia Central) e `ingesta@cuantico.test`. Cada uno toma su clave de una variable distinta en tu `.env` (`DEMO_ADMIN_PASSWORD`, `DEMO_OPS_LA80_PASSWORD`, `DEMO_OPS_FARMACIA_PASSWORD`, `DEMO_INGEST_PASSWORD`); no están en el código. Son distintas a propósito: con una clave compartida, un usuario de operaciones podría entrar como admin.
 
 ## Supuestos
 Cálculo de costo (`backend/src/domain`, reglas `v1`):
@@ -58,6 +58,7 @@ Ingesta (`POST /events`):
 - Se usa la tarifa vigente en el instante del evento terminal (o del último evento si la entrega sigue en curso). Sin tarifa vigente → el evento se guarda y queda la anomalía `NO_TARIFF`.
 - Una transición fuera de orden en el tiempo (p. ej. `en_ruta` después de `entregada`) no se rechaza: el evento ya ocurrió. Queda como anomalía `INVALID_TRANSITION`. Saltarse etapas (p. ej. `creada` → `entregada`) sí está permitido: el enunciado no exige registrar todos los estados.
 - Los `eventId` y `deliveryId` son globales: los emite un único sistema de flota confiable, no cada comercio. Por eso la ingesta será un rol de servicio (fase 3), no un usuario de comercio.
+- Los mensajeros son globales (trabajan para varios comercios). Un usuario de operaciones solo ve los que tienen entregas en sus comercios; para los demás recibe 404.
 - Totales por comercio: cuentan las entregas cuyo evento terminal cae en [desde, hasta) según la zona del comercio. Las que no tienen monto (incompletas o inconsistentes) cuentan, pero no suman.
 - Monedas: cada tarifa define la suya (COP, MXN, CLP en los datos de ejemplo) y los montos están en su unidad mínima. No se suman montos de monedas distintas.
 - **Supuesto abierto para negocio: entregada y fallida en la misma entrega.** El costo queda `inconsistent` (estado de la entrega `inconsistente`), sin monto, y la ingesta lo registra como anomalía visible; nunca se descarta. Negocio debe definir cuál prevalece.

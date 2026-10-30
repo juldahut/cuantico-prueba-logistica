@@ -2,35 +2,56 @@
 
 const bcrypt = require('bcryptjs');
 
-// Usuarios de ejemplo. La clave NO esta en el codigo: sale de la variable de
-// entorno DEMO_USERS_PASSWORD (ver .env.example) y es la misma para todos.
+// Usuarios de ejemplo. Las claves NO estan en el codigo: cada usuario toma la
+// suya de una variable de entorno distinta (ver .env.example). Si compartieran
+// clave, quien entra como operaciones de un comercio podria entrar como admin.
 const USERS = [
-  { email: 'admin@cuantico.test', role: 'admin', merchants: [] },
-  { email: 'ops.la80@cuantico.test', role: 'operaciones', merchants: ['Tienda La 80'] },
-  { email: 'ops.farmacia@cuantico.test', role: 'operaciones', merchants: ['Farmacia Central'] },
-  { email: 'ingesta@cuantico.test', role: 'ingesta', merchants: [] },
+  { email: 'admin@cuantico.test', role: 'admin', merchants: [], env: 'DEMO_ADMIN_PASSWORD' },
+  {
+    email: 'ops.la80@cuantico.test',
+    role: 'operaciones',
+    merchants: ['Tienda La 80'],
+    env: 'DEMO_OPS_LA80_PASSWORD',
+  },
+  {
+    email: 'ops.farmacia@cuantico.test',
+    role: 'operaciones',
+    merchants: ['Farmacia Central'],
+    env: 'DEMO_OPS_FARMACIA_PASSWORD',
+  },
+  { email: 'ingesta@cuantico.test', role: 'ingesta', merchants: [], env: 'DEMO_INGEST_PASSWORD' },
 ];
+
+function passwords() {
+  const values = USERS.map((u) => process.env[u.env]);
+  USERS.forEach((u, i) => {
+    const value = values[i];
+    if (!value || value.length < 12 || Buffer.byteLength(value) > 72) {
+      throw new Error(`Define ${u.env} (entre 12 caracteres y 72 bytes). Ver .env.example.`);
+    }
+  });
+  if (new Set(values).size !== values.length) {
+    throw new Error('Cada usuario de ejemplo debe tener una clave distinta.');
+  }
+  return values;
+}
 
 module.exports = {
   async up(queryInterface) {
-    const password = process.env.DEMO_USERS_PASSWORD;
-    if (!password || password.length < 12) {
-      throw new Error(
-        'Define DEMO_USERS_PASSWORD (minimo 12 caracteres) para crear los usuarios de ejemplo.',
-      );
-    }
-    const passwordHash = await bcrypt.hash(password, 10);
+    const values = passwords();
     const now = new Date();
 
     const rows = await queryInterface.bulkInsert(
       'users',
-      USERS.map(({ email, role }) => ({
-        email,
-        password_hash: passwordHash,
-        role,
-        created_at: now,
-        updated_at: now,
-      })),
+      await Promise.all(
+        USERS.map(async ({ email, role }, i) => ({
+          email,
+          password_hash: await bcrypt.hash(values[i], 10),
+          role,
+          created_at: now,
+          updated_at: now,
+        })),
+      ),
       { returning: ['id', 'email'] },
     );
     const userId = new Map(rows.map((r) => [r.email, r.id]));

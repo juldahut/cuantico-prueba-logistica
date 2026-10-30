@@ -6,7 +6,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
       POSTGRES_DB: ${POSTGRES_DB:-cuantico}
     ports:
-      - "5432:5432"
+      # Solo local: la base no queda expuesta en otras interfaces.
+      - "127.0.0.1:5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql
       - ./backend/docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
@@ -25,7 +26,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-cuantico}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cuantico}
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
       JWT_EXPIRES_IN: 2h
-      DEMO_USERS_PASSWORD: ${DEMO_USERS_PASSWORD:?Define DEMO_USERS_PASSWORD en .env}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?Define DEMO_ADMIN_PASSWORD en .env}
+      DEMO_OPS_LA80_PASSWORD: ${DEMO_OPS_LA80_PASSWORD:?Define DEMO_OPS_LA80_PASSWORD en .env}
+      DEMO_OPS_FARMACIA_PASSWORD: ${DEMO_OPS_FARMACIA_PASSWORD:?Define DEMO_OPS_FARMACIA_PASSWORD en .env}
+      DEMO_INGEST_PASSWORD: ${DEMO_INGEST_PASSWORD:?Define DEMO_INGEST_PASSWORD en .env}
       CORS_ORIGIN: http://localhost:5173
       LLM_PROVIDER: ${LLM_PROVIDER:-fake}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

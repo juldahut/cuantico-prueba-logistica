@@ -83,6 +83,13 @@ async function courierStatusCounts(user, courierId) {
     raw: true,
   });
 
+  // Un usuario de operaciones solo ve mensajeros con entregas en sus
+  // comercios: si no hay ninguna, responde 404 igual que si no existiera y no
+  // se puede recorrer ids para sacar nombres.
+  if (user.merchantIds !== null && rows.length === 0) {
+    throw new HttpError(404, 'NOT_FOUND', 'Mensajero no encontrado.');
+  }
+
   const counts = {};
   for (const row of rows) counts[row.status] = Number(row.n);
   return { courierId: courier.id, courierName: courier.name, counts };

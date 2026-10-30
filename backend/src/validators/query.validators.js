@@ -10,12 +10,15 @@ const loginBody = [
   body('email')
     .custom((v) => isText(254)(v) && /^[^\s@]+@[^\s@]+$/.test(v))
     .withMessage('email invalido.'),
+  // bcrypt solo usa los primeros 72 bytes: no se aceptan claves mas largas.
   body('password')
-    .custom((v) => isText(200)(v) && v.length > 0)
+    .custom((v) => typeof v === 'string' && v.length > 0 && Buffer.byteLength(v) <= 72)
     .withMessage('password invalido.'),
 ];
 
-const merchantIdParam = [param('id').isInt({ min: 1 }).withMessage('id invalido.')];
+const merchantIdParam = [
+  param('id').isInt({ min: 1, max: 2147483647 }).withMessage('id invalido.'),
+];
 
 const totalsQuery = [
   ...merchantIdParam,
@@ -27,7 +30,7 @@ const totalsQuery = [
     .withMessage('to debe ser YYYY-MM-DD.'),
 ];
 
-const courierIdParam = [param('id').isInt({ min: 1 }).withMessage('id invalido.')];
+const courierIdParam = [param('id').isInt({ min: 1, max: 2147483647 }).withMessage('id invalido.')];
 
 const deliveryIdParam = [
   param('id')
