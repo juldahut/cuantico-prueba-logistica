@@ -74,4 +74,71 @@ function localDateRangeToUtc(from, to, timeZone) {
   };
 }
 
-module.exports = { localDateRangeToUtc };
+// Fecha de calendario (YYYY-MM-DD) que marca el reloj del comercio en `now`.
+function localToday(nowIso, timeZone) {
+  assertTimeZone(timeZone);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(nowIso));
+  const get = (type) => parts.find((p) => p.type === type).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+const toDate = (ms) => new Date(ms).toISOString().slice(0, 10);
+const addDays = (date, days) => toDate(parseDate(date) + days * DAY_MS);
+
+function firstOfMonth(date, monthsBack = 0) {
+  const d = new Date(parseDate(date));
+  return toDate(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - monthsBack, 1));
+}
+
+const PERIOD_EXPRESSIONS = Object.freeze([
+  'hoy',
+  'ayer',
+  'esta_semana',
+  'semana_pasada',
+  'este_mes',
+  'mes_pasado',
+  'ultimos_7_dias',
+  'rango',
+]);
+
+// Traduce una expresion de periodo a [desde, hasta) en fechas locales. Las
+// semanas empiezan el lunes. "rango" recibe fechas inclusivas, como las dice
+// una persona ("del 15 al 20"). El calculo es del codigo, no del modelo.
+function resolveRelativePeriod({ expression, today, startDate, endDate }) {
+  parseDate(today);
+  const weekday = (new Date(parseDate(today)).getUTCDay() + 6) % 7; // lunes = 0
+  const monday = addDays(today, -weekday);
+  const tomorrow = addDays(today, 1);
+
+  switch (expression) {
+    case 'hoy':
+      return { from: today, to: tomorrow };
+    case 'ayer':
+      return { from: addDays(today, -1), to: today };
+    case 'esta_semana':
+      return { from: monday, to: tomorrow };
+    case 'semana_pasada':
+      return { from: addDays(monday, -7), to: monday };
+    case 'este_mes':
+      return { from: firstOfMonth(today), to: tomorrow };
+    case 'mes_pasado':
+      return { from: firstOfMonth(today, 1), to: firstOfMonth(today) };
+    case 'ultimos_7_dias':
+      return { from: addDays(today, -6), to: tomorrow };
+    case 'rango': {
+      if (parseDate(endDate) < parseDate(startDate)) {
+        throw invalid('La fecha final no puede ser anterior a la inicial');
+      }
+      return { from: startDate, to: addDays(endDate, 1) };
+    }
+    default:
+      throw invalid('Expresion de periodo desconocida');
+  }
+}
+
+module.exports = { localDateRangeToUtc, localToday, resolveRelativePeriod, PERIOD_EXPRESSIONS };
