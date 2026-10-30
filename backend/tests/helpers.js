@@ -1,7 +1,81 @@
 'use strict';
 
-const { sequelize } = require('../src/models');
+const db = require('../src/models');
 
-// Helpers de prueba compartidos. Se ampliaran con las fabricas de comercios,
-// tarifas y eventos en las fases de dominio e ingesta.
-module.exports = { sequelize };
+const { sequelize } = db;
+
+// Vacia las tablas entre pruebas. TRUNCATE no dispara el trigger append-only
+// de cost_calculations (es por fila, para UPDATE y DELETE).
+async function resetDb() {
+  await sequelize.query(
+    `TRUNCATE anomalies, cost_calculations, delivery_events, deliveries, tariffs, couriers, merchants
+     RESTART IDENTITY CASCADE`,
+  );
+}
+
+async function createMerchant({
+  name = 'Comercio Prueba',
+  timeZone = 'America/Bogota',
+  baseAmount = 5000,
+  perKmAmount = 1200,
+  validFrom = new Date('2026-01-01T00:00:00Z'),
+} = {}) {
+  const merchant = await db.Merchant.create({ name, timeZone, notes: null });
+  const tariff = await db.Tariff.create({
+    merchantId: merchant.id,
+    baseAmount,
+    perKmAmount,
+    currency: 'COP',
+    validFrom,
+  });
+  return { merchant, tariff };
+}
+
+const PICKUP = { lat: 4.6, lon: -74.08 };
+const DROPOFF = { lat: 4.61, lon: -74.08 };
+
+// Eventos de una entrega completa diurna en Bogota: costo esperado 6334.
+function deliveryEvents(merchantId, deliveryId = 'D-1', prefix = deliveryId) {
+  return [
+    {
+      eventId: `${prefix}-e1`,
+      deliveryId,
+      merchantId,
+      type: 'creada',
+      occurredAt: '2026-01-15T18:00:00Z',
+      address: 'Calle 80 # 20-10',
+    },
+    {
+      eventId: `${prefix}-e2`,
+      deliveryId,
+      merchantId,
+      type: 'asignada',
+      occurredAt: '2026-01-15T18:05:00Z',
+    },
+    {
+      eventId: `${prefix}-e3`,
+      deliveryId,
+      merchantId,
+      type: 'recogida',
+      occurredAt: '2026-01-15T18:20:00Z',
+      location: PICKUP,
+    },
+    {
+      eventId: `${prefix}-e4`,
+      deliveryId,
+      merchantId,
+      type: 'en_ruta',
+      occurredAt: '2026-01-15T18:25:00Z',
+    },
+    {
+      eventId: `${prefix}-e5`,
+      deliveryId,
+      merchantId,
+      type: 'entregada',
+      occurredAt: '2026-01-15T19:00:00Z',
+      location: DROPOFF,
+    },
+  ];
+}
+
+module.exports = { db, sequelize, resetDb, createMerchant, deliveryEvents, PICKUP, DROPOFF };
