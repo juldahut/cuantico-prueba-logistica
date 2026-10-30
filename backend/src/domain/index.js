@@ -9,7 +9,12 @@ const { haversineMeters } = require('./distance');
 const { localHour, isNight } = require('./localTime');
 const { EVENT_TYPES, normalizeEvents } = require('./events');
 const { calculateDeliveryCost } = require('./cost');
-const { localDateRangeToUtc } = require('./period');
+const {
+  localDateRangeToUtc,
+  localToday,
+  resolveRelativePeriod,
+  PERIOD_EXPRESSIONS,
+} = require('./period');
 
 module.exports = {
   DomainError,
@@ -23,4 +28,7 @@ module.exports = {
   normalizeEvents,
   calculateDeliveryCost,
   localDateRangeToUtc,
+  localToday,
+  resolveRelativePeriod,
+  PERIOD_EXPRESSIONS,
 };

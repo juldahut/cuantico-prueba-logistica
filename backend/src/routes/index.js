@@ -4,9 +4,11 @@ const { Router } = require('express');
 const authenticate = require('../middlewares/authenticate');
 const authorizeRoles = require('../middlewares/authorizeRoles');
 const validate = require('../middlewares/validate');
-const { authLimiter } = require('../middlewares/rateLimiters');
+const { authLimiter, agentLimiter } = require('../middlewares/rateLimiters');
 const v = require('../validators/query.validators');
 const c = require('../controllers/queries.controller');
+const { chatBody } = require('../validators/agent.validators');
+const { postChat } = require('../controllers/agent.controller');
 const healthRoutes = require('./health.routes');
 const eventsRoutes = require('./events.routes');
 const anomaliesRoutes = require('./anomalies.routes');
@@ -42,6 +44,6 @@ router.get(
   c.getCostAudit,
 );
 router.get('/search', ...reader, validate(v.searchQuery, { status: 422 }), c.getSearch);
-// Siguiente fase: /agent
+router.post('/agent/chat', ...reader, agentLimiter, validate(chatBody, { status: 422 }), postChat);
 
 module.exports = router;
