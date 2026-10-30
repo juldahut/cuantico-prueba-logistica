@@ -38,3 +38,19 @@ Las decisiones de arquitectura están en `docs/adr/` y los supuestos de negocio 
   - Prompt injection, con un modelo guionizado que obedece la nota hostil.
   - Acceso: 403 y 404 entre comercios.
 - **CI:** lint y tests de backend y frontend, build, `npm audit --audit-level=high` y gitleaks sobre todo el historial.
+
+## Verificación final en clon limpio (2026-10-30)
+Clon desde GitHub en una carpeta temporal, con un `.env` creado a partir de `.env.example` con valores aleatorios, y un
+proyecto de Compose aparte en puertos alternos:
+- **Arranque:** `docker compose up --build` levantó la base, el backend (3 migraciones y 2 seeders) y el frontend.
+  Al reiniciar el backend, los seeders no se repiten.
+- **Prueba de humo contra la API:**
+  - `/health` 200 y login de 3 usuarios; la clave de otro usuario da 401.
+  - Alcance: operaciones ve un solo comercio y recibe 403 en otro.
+  - Búsqueda: `%` y `' OR 1=1 --` no devuelven nada.
+  - Anomalías visibles, `POST /events` con rol de operaciones da 403 y un evento duplicado da 200.
+  - Agente con el modelo simulado: totales verificados, notas mostradas como dato y otro comercio no encontrado.
+  - Frontend 200 con CSP.
+- **Tests y lint:** backend 160 tests, lint y Prettier en verde. Frontend 7 tests, lint y build en verde.
+- **Seguridad:** `npm audit --audit-level=high` sin hallazgos en backend ni frontend, y gitleaks v8.24.3 sobre los 14
+  commits del historial sin fugas.
