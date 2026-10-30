@@ -12,7 +12,9 @@ function buildLimiter(options) {
   return rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: { message: 'Demasiadas peticiones. Intenta de nuevo mas tarde.', status: 429 } },
+    message: {
+      error: { message: 'Demasiadas peticiones. Intenta de nuevo mas tarde.', status: 429 },
+    },
     ...options,
   });
 }

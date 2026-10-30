@@ -16,8 +16,6 @@ Se valora criterio, claridad y decisiones documentadas mas que volumen. Entrega 
 
 Node.js 24, Express 5, Sequelize 6, PostgreSQL 18 (Docker Compose), JavaScript (CommonJS) en backend.
 Frontend: React 19 + Vite (SPA) + Tailwind. Tests: Jest + Supertest. Lint: ESLint + Prettier.
-Infraestructura reciclada de un proyecto propio anterior (middlewares, Docker, CI, kit de UI); el dominio se escribe desde cero.
-Esto debe declararse en NOTAS.md.
 
 ## Reglas duras (no negociables)
 
@@ -47,7 +45,6 @@ El enunciado trae 4 pedidos riesgosos. NO se implementan como fueron redactados;
 - Tests de los caminos criticos: idempotencia, desorden, calculo nocturno, entrega fallida, inyeccion SQL, prompt injection, acceso.
 - TDD en el dominio: la prueba que falla va primero.
 - Cada PR completa "que genero la IA y que corregi"; lo relevante se anota en `docs/ai-log.md` (alimenta NOTAS.md). Solo lo que realmente paso.
-- Antes de entregar: buscar con `grep -ri` el nombre del proyecto anterior y de su cliente; debe dar cero resultados.
 
 ## Definicion de terminado
 
