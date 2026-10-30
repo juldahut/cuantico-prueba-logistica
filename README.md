@@ -29,7 +29,7 @@ Cálculo de costo (`backend/src/domain`, reglas `v1`):
 - El recargo nocturno lo decide **solo el instante del evento `entregada`** ("se completó"). Una recogida de noche con entrega de día cobra tarifa diurna.
 - El 15 % se aplica sobre base + distancia.
 - La distancia es Haversine entre las coordenadas de `recogida` y `entregada`, redondeada a metros (R = 6 371 000 m). El dinero se redondea una sola vez, half-up, al final.
-- Moneda COP; los montos son enteros en pesos (unidad mínima).
+- Los montos son enteros en la unidad mínima de la moneda de la tarifa (ver monedas más abajo).
 - La entrega fallida cobra el 40 % de la base aunque no haya recogida.
 - **Entregada sin recogida** queda `incomplete`, sin monto (nunca 0): falta información, no es gratis.
 - Si llegan varios eventos del mismo tipo con ids distintos (p. ej. dos `recogida`), cuenta el último en orden de `occurredAt`; con el mismo instante desempata el `eventId` (orden lexicográfico). Es determinista, no una regla de negocio.
