@@ -12,6 +12,10 @@ jobs:
   secretos:
     name: Escaneo de secretos
     runs-on: ubuntu-latest
+    # gitleaks-action lista los commits del PR por la API: necesita leer PRs.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
