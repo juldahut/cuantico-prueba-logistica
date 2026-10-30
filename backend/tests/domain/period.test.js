@@ -145,3 +145,22 @@ describe('localToday y resolveRelativePeriod', () => {
     ).toBe('INVALID_PERIOD');
   });
 });
+
+describe('periodos relativos: bordes', () => {
+  const { localToday, resolveRelativePeriod } = require('../../src/domain');
+  const r = (expression, today) => resolveRelativePeriod({ expression, today });
+
+  it('domingo, cruce de año, cruce de mes, dia 1 y 29 de febrero', () => {
+    expect(r('esta_semana', '2026-11-01')).toEqual({ from: '2026-10-26', to: '2026-11-02' });
+    expect(r('semana_pasada', '2027-01-04')).toEqual({ from: '2026-12-28', to: '2027-01-04' });
+    expect(r('esta_semana', '2026-12-02')).toEqual({ from: '2026-11-30', to: '2026-12-03' });
+    expect(r('este_mes', '2026-10-01')).toEqual({ from: '2026-10-01', to: '2026-10-02' });
+    expect(r('ayer', '2028-03-01')).toEqual({ from: '2028-02-29', to: '2028-03-01' });
+  });
+
+  it('localToday en zonas por delante de UTC cerca de la medianoche', () => {
+    expect(localToday('2026-10-29T15:30:00.000Z', 'Asia/Tokyo')).toBe('2026-10-30');
+    expect(localToday('2026-10-29T09:59:59.000Z', 'Pacific/Kiritimati')).toBe('2026-10-29');
+    expect(localToday('2026-10-29T10:00:00.000Z', 'Pacific/Kiritimati')).toBe('2026-10-30');
+  });
+});

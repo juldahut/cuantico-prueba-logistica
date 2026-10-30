@@ -118,7 +118,7 @@ function next(question, results) {
     const rows = last.data.results;
     if (rows.length === 0) return say('No encontré entregas con ese texto.');
     return say(
-      `Encontré ${rows.length} entregas: ${rows.map((r) => `${r.delivery_id} (${r.merchant_name}, ${r.status})`).join('; ')}.`,
+      `Encontré ${last.data.count} entregas: ${rows.map((r) => `${r.delivery_id} (${r.merchant_name}, ${r.status})`).join('; ')}.`,
     );
   }
 
@@ -140,14 +140,13 @@ function next(question, results) {
     if (results.length === 2) {
       return toolUse('get_merchant_totals', {
         merchant_id: merchant.id,
-        from: last.data.from,
-        to: last.data.to,
+        ...detectPeriod(question),
       });
     }
     const t = last.data;
-    const totals = t.totals.map((x) => `${fmt(x.amount)} ${x.currency}`).join(' y ') || '0';
+    const totals = t.totals.map((x) => `${fmt(x.amount)} ${x.currency}`).join(' y ') || 'nada';
     return say(
-      `${t.merchant_name} facturó ${totals} en ${t.deliveries} entregas terminadas entre el ${t.from} y el ${t.to} (sin incluir el ${t.to}).`,
+      `${t.merchant_name} facturó ${totals} en ${t.deliveries} entregas terminadas del ${t.from} al ${t.last_day}.`,
     );
   }
 

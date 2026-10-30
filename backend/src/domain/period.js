@@ -134,6 +134,9 @@ function resolveRelativePeriod({ expression, today, startDate, endDate }) {
       if (parseDate(endDate) < parseDate(startDate)) {
         throw invalid('La fecha final no puede ser anterior a la inicial');
       }
+      if (parseDate(endDate) - parseDate(startDate) >= MAX_DAYS * DAY_MS) {
+        throw invalid(`El rango maximo es de ${MAX_DAYS} dias`);
+      }
       return { from: startDate, to: addDays(endDate, 1) };
     }
     default:

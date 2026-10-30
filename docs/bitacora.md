@@ -14,6 +14,9 @@ Registro breve por fase. Solo lo que realmente pasó.
 - F3: en Chile el horario de verano empieza a las 00:00, así que ese día la medianoche no existe. "Inicio del día" no siempre es 00:00.
 - F3: con `standard_conforming_strings=on` (por defecto), Sequelize envía la barra invertida tal cual y `ILIKE` la usa como escape: el escape de `%` y `_` funciona.
 
+- F4: quitar un delimitador con `split(...).join("")` una sola vez no basta: el texto lo puede reconstruir anidándolo. Es más simple prohibir los caracteres que lo forman.
+- F4: si el modelo puede pasar las fechas a la tool de totales, la tool las devuelve y quedan "verificadas". El servidor debe resolver el periodo.
+
 ## Consultas
 - F1: el borde "8:00 p.m. a 6:00 a.m." no está fijado en el enunciado; se toma [20:00, 06:00).
 

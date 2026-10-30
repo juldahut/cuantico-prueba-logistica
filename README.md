@@ -41,8 +41,12 @@ Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Ti
 ## Agente conversacional
 - El LLM orquesta y redacta; las tools calculan y autorizan. Tools de solo lectura: `list_merchants`, `resolve_period`, `get_merchant_totals`, `get_courier_status_counts`, `search_deliveries`, `explain_cost` y `get_merchant_notes`.
 - El alcance sale de la sesión (JWT → usuario en BD), nunca del modelo: el modelo puede pedir cualquier `merchant_id`, pero el servidor decide qué devuelve.
-- Límites: 5 llamadas al modelo por pregunta, 40 000 tokens en total, mensajes de hasta 1000 caracteres e historial de hasta 10 turnos (solo texto de usuario y asistente).
-- **Verificación de cifras:** todo número de la respuesta debe aparecer en los resultados de las tools (o en la pregunta). Si no, se descarta el texto del modelo y se devuelven los datos crudos con `verified: false`.
+- Límites: 5 llamadas al modelo por pregunta, 40 000 tokens en total (se revisa antes de cada llamada), mensajes de hasta 1000 caracteres e historial de hasta 10 turnos (solo texto de usuario y asistente).
+- **Verificación de cifras:** cada fecha y cada número de la respuesta debe salir de un campo de datos de las tools (montos, conteos, fechas completas). No cuentan los ids, el texto de terceros ni los números que escribió el usuario. Si algo no cuadra, se descarta el texto del modelo y se devuelven los datos crudos con `verified: false`. Límites conocidos: no detecta cifras escritas en palabras ("seis mil") ni ata cada monto a su comercio.
+- El modelo no envía fechas: los periodos van como expresión (`semana_pasada`, `rango` con fechas inclusivas…) y el servidor los resuelve. Las salidas incluyen `last_day` para no tener que restar un día.
+- Todo texto de terceros que devuelven las tools (notas, nombres, direcciones) se normaliza (NFKC), se le quitan caracteres de control y `<`/`>` y se trunca; las notas además van delimitadas.
+- Máximo 5 tools por paso; en el último paso no se ejecutan tools.
+- `toolCalls` se devuelve completo al cliente a propósito: es el panel de "datos consultados" y solo contiene datos del alcance del usuario.
 - La respuesta incluye `toolCalls` (nombre, entrada, salida o error): son los "datos consultados".
 - Proveedores: `LLM_PROVIDER=fake` (por defecto) es un modelo simulado por reglas, determinista y sin llave; sirve para tests y para la demo. `LLM_PROVIDER=anthropic` usa el SDK oficial con `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` (por defecto `claude-opus-5-5`, esfuerzo `low`, tools con `strict` y respaldo automático si el modelo declina). El proveedor real no se probó contra la API en este repositorio.
 - Periodos relativos: las semanas empiezan el lunes; "la semana pasada" es de lunes a domingo, en la zona del comercio.
