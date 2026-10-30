@@ -3,12 +3,18 @@
 const db = require('../src/models');
 
 const { sequelize } = db;
+const crypto = require('crypto');
+const { hashPassword, issueToken } = require('../src/services/auth.service');
+
+// Aleatoria en cada corrida: ninguna clave queda escrita en el repositorio.
+const TEST_PASSWORD = crypto.randomBytes(18).toString('base64url');
 
 // Vacia las tablas entre pruebas. TRUNCATE no dispara el trigger append-only
 // de cost_calculations (es por fila, para UPDATE y DELETE).
 async function resetDb() {
   await sequelize.query(
-    `TRUNCATE anomalies, cost_calculations, delivery_events, deliveries, tariffs, couriers, merchants
+    `TRUNCATE user_merchants, users, anomalies, cost_calculations, delivery_events, deliveries,
+       tariffs, couriers, merchants
      RESTART IDENTITY CASCADE`,
   );
 }
@@ -78,4 +84,27 @@ function deliveryEvents(merchantId, deliveryId = 'D-1', prefix = deliveryId) {
   ];
 }
 
-module.exports = { db, sequelize, resetDb, createMerchant, deliveryEvents, PICKUP, DROPOFF };
+// Crea un usuario y devuelve su token. merchantIds solo aplica a operaciones.
+async function createUser({ role = 'admin', merchantIds = [], email } = {}) {
+  const user = await db.User.create({
+    email: email || `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}@prueba.test`,
+    passwordHash: await hashPassword(TEST_PASSWORD),
+    role,
+  });
+  for (const merchantId of merchantIds) {
+    await db.UserMerchant.create({ userId: user.id, merchantId });
+  }
+  return { user, token: issueToken(user), auth: { Authorization: `Bearer ${issueToken(user)}` } };
+}
+
+module.exports = {
+  db,
+  sequelize,
+  resetDb,
+  createMerchant,
+  createUser,
+  deliveryEvents,
+  PICKUP,
+  DROPOFF,
+  TEST_PASSWORD,
+};

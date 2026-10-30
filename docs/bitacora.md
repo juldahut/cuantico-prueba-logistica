@@ -11,6 +11,9 @@ Registro breve por fase. Solo lo que realmente pasó.
 - F2: `isInt`/`isIn` de express-validator validan cada elemento de un arreglo; `[]` pasa. Hay que exigir el tipo primitivo.
 - F2: con `INSERT ... ON CONFLICT DO NOTHING` la transacción no se aborta por la violación única (a diferencia de capturar el error 23505).
 
+- F3: en Chile el horario de verano empieza a las 00:00, así que ese día la medianoche no existe. "Inicio del día" no siempre es 00:00.
+- F3: con `standard_conforming_strings=on` (por defecto), Sequelize envía la barra invertida tal cual y `ILIKE` la usa como escape: el escape de `%` y `_` funciona.
+
 ## Consultas
 - F1: el borde "8:00 p.m. a 6:00 a.m." no está fijado en el enunciado; se toma [20:00, 06:00).
 
