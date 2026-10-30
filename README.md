@@ -33,7 +33,7 @@ Ver `docs/adr/`. Resumen en esta sección al cerrar el proyecto.
 | GET | `/couriers/:id/status-counts` | admin, operaciones (solo cuenta sus comercios) |
 | GET | `/deliveries/:id/cost-audit` | admin, operaciones (su comercio) |
 | GET | `/search?q=` | admin, operaciones (sus comercios) |
-| GET | `/anomalies?code=&state=open|resolved|all` | admin, operaciones (sus comercios) |
+| GET | `/anomalies?code=&state=` (open, resolved o all) | admin, operaciones (sus comercios) |
 
 Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Tienda La 80), `ops.farmacia@cuantico.test` (Farmacia Central) e `ingesta@cuantico.test`. La clave es la de `DEMO_USERS_PASSWORD` en tu `.env`; no está en el código.
 
