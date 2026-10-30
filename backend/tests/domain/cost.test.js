@@ -308,6 +308,102 @@ describe('calculateDeliveryCost', () => {
     });
   });
 
+  describe('casos adicionales de la revision', () => {
+    it('el mismo instante escrito con y sin milisegundos no es conflicto', () => {
+      const events = completeDelivery({ deliveredAt: '2026-01-15T19:00:00Z' });
+      const sameInstant = { ...events[4], occurredAt: '2026-01-15T19:00:00.000Z' };
+
+      expect(calc([...events, sameInstant])).toEqual(calc(events));
+    });
+
+    it('conflicto por location o type distinto, aunque la copia alterada llegue primero', () => {
+      const events = completeDelivery({ deliveredAt: '2026-01-15T19:00:00Z' });
+      const movedDropoff = { ...events[4], location: { lat: 4.7, lon: -74.08 } };
+      const changedType = { ...events[3], type: 'asignada' };
+
+      expect(errorCode(() => calc([movedDropoff, ...events]))).toBe('EVENT_CONFLICT');
+      expect(errorCode(() => calc([changedType, ...events]))).toBe('EVENT_CONFLICT');
+    });
+
+    it('permutaciones con duplicados mezclados en incomplete e inconsistent', () => {
+      const missingPickup = [
+        ev('m1', 'creada', '2026-01-15T18:00:00Z'),
+        ev('m2', 'asignada', '2026-01-15T18:05:00Z'),
+        ev('m3', 'entregada', '2026-01-15T19:00:00Z', DROPOFF),
+      ];
+      const bothTerminal = [
+        ...completeDelivery({ deliveredAt: '2026-01-15T19:00:00Z' }).slice(2),
+        ev('e9', 'fallida', '2026-01-15T19:30:00Z'),
+      ];
+
+      for (const events of [missingPickup, bothTerminal]) {
+        const expected = calc(events);
+        const withDuplicate = [...events, structuredClone(events[0])];
+        for (const perm of permutations(withDuplicate)) {
+          expect(calc(perm)).toEqual(expected);
+        }
+      }
+    });
+
+    it('con dos recogidas distintas cuenta la ultima por occurredAt', () => {
+      const events = [
+        ...completeDelivery({ deliveredAt: '2026-01-15T19:00:00Z' }),
+        // Segunda recogida mas tarde en el mismo punto de entrega: distancia 0.
+        ev('e3b', 'recogida', '2026-01-15T18:50:00Z', DROPOFF),
+      ];
+
+      expect(calc(events).distanceMeters).toBe(0);
+      expect(calc(events).amount).toBe(5000);
+    });
+
+    it('respeta el horario de verano de la zona del comercio', () => {
+      // 2026-03-09 00:30Z en Nueva York ya es EDT (UTC-4): 20:30, noche.
+      // Con el offset de invierno (UTC-5) serian las 19:30 y no habria recargo.
+      const events = completeDelivery({ deliveredAt: '2026-03-09T00:30:00Z' });
+
+      expect(calc(events, 'America/New_York').isNight).toBe(true);
+      expect(calc(events, 'America/New_York').amount).toBe(NIGHT_AMOUNT);
+    });
+
+    it('19:59:59 local es diurno y 05:59:59 local es nocturno de punta a punta', () => {
+      expect(calc(completeDelivery({ deliveredAt: '2026-01-16T00:59:59Z' })).amount).toBe(
+        DAY_AMOUNT,
+      );
+      expect(
+        calc(
+          completeDelivery({
+            pickedUpAt: '2026-01-16T10:20:00Z',
+            deliveredAt: '2026-01-16T10:59:59Z',
+          }),
+        ).amount,
+      ).toBe(NIGHT_AMOUNT);
+    });
+
+    it('rechaza fechas imposibles, ids invalidos, monedas invalidas y exceso de eventos', () => {
+      const events = completeDelivery({ deliveredAt: '2026-01-15T19:00:00Z' });
+
+      expect(errorCode(() => calc([...events, ev('x3', 'creada', '2026-02-30T10:00:00Z')]))).toBe(
+        'INVALID_EVENT',
+      );
+      expect(
+        errorCode(() => calc([...events, ev('x'.repeat(129), 'creada', '2026-01-15T18:00:00Z')])),
+      ).toBe('INVALID_EVENT');
+      expect(
+        errorCode(() =>
+          calculateDeliveryCost({
+            events,
+            tariff: { ...TARIFF, currency: 'pesos' },
+            timeZone: BOGOTA,
+          }),
+        ),
+      ).toBe('INVALID_TARIFF');
+      expect(errorCode(() => calc(Array(201).fill(events[0])))).toBe('INVALID_EVENT');
+      expect(errorCode(() => calc(events, BOGOTA, { rulesVersion: Symbol('v1') }))).toBe(
+        'UNKNOWN_RULES_VERSION',
+      );
+    });
+  });
+
   describe('pureza', () => {
     it('no muta los eventos ni la tarifa de entrada', () => {
       const events = deepFreeze(completeDelivery({ deliveredAt: '2026-01-16T01:00:00Z' }));

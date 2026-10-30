@@ -20,12 +20,12 @@ function assertTariff(tariff) {
     isAmount(tariff.baseAmount) &&
     isAmount(tariff.perKmAmount) &&
     typeof tariff.currency === 'string' &&
-    tariff.currency !== '';
+    /^[A-Z]{3}$/.test(tariff.currency);
 
   if (!valid) {
     throw new DomainError(
       'INVALID_TARIFF',
-      'La tarifa requiere baseAmount y perKmAmount enteros no negativos y currency',
+      'La tarifa requiere baseAmount y perKmAmount enteros no negativos y currency ISO 4217',
     );
   }
 }

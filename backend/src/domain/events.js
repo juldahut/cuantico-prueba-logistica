@@ -16,38 +16,49 @@ const EVENT_TYPES = Object.freeze([
 const RANK = new Map(EVENT_TYPES.map((type, i) => [type, i]));
 const TYPES_WITH_LOCATION = new Set(['recogida', 'entregada']);
 
+// Una entrega real tiene pocos eventos; el tope evita trabajo sin limite.
+const MAX_EVENTS = 200;
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
 function invalid(message) {
   return new DomainError('INVALID_EVENT', message);
 }
 
+// Los mensajes no repiten valores de entrada: pueden ser largos o traer
+// saltos de linea que ensucien los logs.
 function assertEvent(event) {
   if (!event || typeof event !== 'object') throw invalid('Evento invalido');
-  if (typeof event.eventId !== 'string' || event.eventId === '') throw invalid('eventId invalido');
-  if (typeof event.deliveryId !== 'string' || event.deliveryId === '') {
-    throw invalid(`deliveryId invalido en ${event.eventId}`);
+  if (typeof event.eventId !== 'string' || !ID_PATTERN.test(event.eventId)) {
+    throw invalid('eventId invalido');
   }
-  if (!RANK.has(event.type)) throw invalid(`Tipo de evento desconocido en ${event.eventId}`);
+  if (typeof event.deliveryId !== 'string' || !ID_PATTERN.test(event.deliveryId)) {
+    throw invalid('deliveryId invalido');
+  }
+  if (!RANK.has(event.type)) throw invalid('Tipo de evento desconocido');
   if (!isUtcInstant(event.occurredAt)) {
-    throw invalid(`occurredAt debe ser ISO 8601 en UTC (con Z) en ${event.eventId}`);
+    throw invalid('occurredAt debe ser ISO 8601 en UTC (con Z)');
   }
-  if (TYPES_WITH_LOCATION.has(event.type)) {
+  if (TYPES_WITH_LOCATION.has(event.type) || event.location !== undefined) {
     try {
       assertCoordinate(event.location);
     } catch {
-      throw invalid(`${event.type} requiere location { lat, lon } valida en ${event.eventId}`);
+      throw invalid('location { lat, lon } invalida o ausente');
     }
   }
 }
 
-// Serializacion con llaves ordenadas: dos copias del mismo evento comparan
-// igual aunque sus propiedades lleguen en otro orden.
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value && typeof value === 'object') {
-    const keys = Object.keys(value).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
+// Huella de los campos que definen un evento (lista blanca). El instante se
+// compara como milisegundos: "19:00:00Z" y "19:00:00.000Z" son el mismo.
+// Campos extra no forman parte del evento y se ignoran.
+function fingerprint(event) {
+  const location = event.location ? [event.location.lat, event.location.lon] : null;
+  return JSON.stringify([
+    event.eventId,
+    event.deliveryId,
+    event.type,
+    Date.parse(event.occurredAt),
+    location,
+  ]);
 }
 
 function compareEvents(a, b) {
@@ -59,22 +70,20 @@ function compareEvents(a, b) {
   return a.eventId < b.eventId ? -1 : 1;
 }
 
-// Deduplica por eventId y ordena de forma total. El resultado no depende del
-// orden de llegada. No muta la entrada.
+// Deduplica por eventId y ordena de forma total por (instante, etapa,
+// eventId). El resultado no depende del orden de llegada. No muta la entrada.
 function normalizeEvents(events) {
   if (!Array.isArray(events)) throw invalid('events debe ser un arreglo');
+  if (events.length > MAX_EVENTS) throw invalid(`Maximo ${MAX_EVENTS} eventos por entrega`);
 
   const byId = new Map();
   for (const event of events) {
     assertEvent(event);
     const seen = byId.get(event.eventId);
     if (!seen) {
-      byId.set(event.eventId, { event, key: canonical(event) });
-    } else if (seen.key !== canonical(event)) {
-      throw new DomainError(
-        'EVENT_CONFLICT',
-        `El evento ${event.eventId} llego con contenido distinto`,
-      );
+      byId.set(event.eventId, { event, key: fingerprint(event) });
+    } else if (seen.key !== fingerprint(event)) {
+      throw new DomainError('EVENT_CONFLICT', 'Un eventId llego con contenido distinto');
     }
   }
 
@@ -87,4 +96,4 @@ function normalizeEvents(events) {
   return unique.sort(compareEvents);
 }
 
-module.exports = { EVENT_TYPES, normalizeEvents };
+module.exports = { EVENT_TYPES, MAX_EVENTS, normalizeEvents };

@@ -17,8 +17,8 @@ const RULES = Object.freeze({
 });
 
 function getRules(version) {
-  if (!Object.hasOwn(RULES, version)) {
-    throw new DomainError('UNKNOWN_RULES_VERSION', `Version de reglas desconocida: ${version}`);
+  if (typeof version !== 'string' || !Object.hasOwn(RULES, version)) {
+    throw new DomainError('UNKNOWN_RULES_VERSION', 'Version de reglas desconocida');
   }
   return RULES[version];
 }
