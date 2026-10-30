@@ -40,7 +40,15 @@ services:
       db:
         condition: service_healthy
 
-  # frontend: se agrega cuando exista el proyecto React + Vite (fase de frontend).
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:3001
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
 
 volumes:
   pg_data:

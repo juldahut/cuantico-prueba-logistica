@@ -7,7 +7,11 @@ export default function Table({ children, className = '' }) {
 }
 
 export function Thead({ children }) {
-  return <thead className="bg-surface-muted text-xs uppercase tracking-wide text-ink-muted">{children}</thead>;
+  return (
+    <thead className="bg-surface-muted text-xs uppercase tracking-wide text-ink-muted">
+      {children}
+    </thead>
+  );
 }
 
 export function Th({ children, className = '' }) {
@@ -23,5 +27,11 @@ export function Td({ children, className = '' }) {
 }
 
 export function Tr({ children, className = '' }) {
-  return <tr className={`border-t border-border first:border-t-0 hover:bg-surface-muted/60 ${className}`}>{children}</tr>;
+  return (
+    <tr
+      className={`border-t border-border first:border-t-0 hover:bg-surface-muted/60 ${className}`}
+    >
+      {children}
+    </tr>
+  );
 }

@@ -1,5 +1,3 @@
-'use client';
-
 export default function ErrorState({ message = 'Ocurrio un error inesperado.', onRetry }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-danger-bg bg-danger-bg px-6 py-12 text-center">

@@ -1,5 +1,3 @@
-'use client';
-
 const VARIANTS = {
   primary: 'bg-accent text-accent-ink hover:brightness-95 focus-visible:outline-accent',
   secondary: 'border border-border bg-surface text-ink hover:bg-surface-muted',

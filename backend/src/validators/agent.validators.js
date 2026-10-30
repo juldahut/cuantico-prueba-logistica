@@ -7,8 +7,9 @@ const MAX_HISTORY = 10;
 
 const isMessage = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
 
-// El historial solo admite turnos de texto de usuario y asistente: el cliente
-// no puede inyectar mensajes de sistema ni resultados de tools.
+// El historial solo admite preguntas anteriores del usuario. El cliente no
+// puede enviar turnos de asistente (podria inventarlos), de sistema ni
+// resultados de tools.
 const chatBody = [
   body('message')
     .custom((v) => isMessage(v, MAX_MESSAGE))
@@ -21,13 +22,10 @@ const chatBody = [
         v.length <= MAX_HISTORY &&
         v.every(
           (h) =>
-            h &&
-            typeof h === 'object' &&
-            (h.role === 'user' || h.role === 'assistant') &&
-            isMessage(h.content, 2000),
+            h && typeof h === 'object' && h.role === 'user' && isMessage(h.content, MAX_MESSAGE),
         ),
     )
-    .withMessage(`history: hasta ${MAX_HISTORY} turnos { role: user|assistant, content }.`),
+    .withMessage(`history: hasta ${MAX_HISTORY} preguntas anteriores { role: user, content }.`),
 ];
 
 module.exports = { chatBody };

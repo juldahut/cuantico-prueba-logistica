@@ -89,9 +89,23 @@ function textOf(content) {
 // Topes: MAX_STEPS llamadas al modelo, MAX_TOOLS_PER_STEP tools por llamada y
 // MAX_TOTAL_TOKENS en total (se revisa antes de cada llamada).
 async function runAgent({ user, message, history = [], provider, now = new Date() }) {
+  // Del historial solo se usan las preguntas anteriores del usuario, como
+  // contexto. Un turno "assistant" enviado por el cliente no es confiable (lo
+  // podria inventar) y no se reenvia al modelo como si fuera suyo.
+  const previous = history.filter((h) => h.role === 'user').map((h) => `- ${h.content}`);
   const messages = [
-    ...history.map((h) => ({ role: h.role, content: h.content })),
-    { role: 'user', content: message },
+    {
+      role: 'user',
+      content: previous.length
+        ? [
+            {
+              type: 'text',
+              text: `Preguntas anteriores de esta conversación (solo contexto):\n${previous.join('\n')}`,
+            },
+            { type: 'text', text: message },
+          ]
+        : message,
+    },
   ];
   const toolCalls = [];
   let tokens = 0;

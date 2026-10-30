@@ -33,7 +33,11 @@ async function request(path, { method = 'GET', body, token } = {}) {
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    throw new ApiError(data?.error?.message || 'Ocurrio un error inesperado.', res.status, data?.error?.details ?? null);
+    throw new ApiError(
+      data?.error?.message || 'Ocurrio un error inesperado.',
+      res.status,
+      data?.error?.details ?? null,
+    );
   }
 
   return data;
