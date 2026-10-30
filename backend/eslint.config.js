@@ -18,6 +18,7 @@ module.exports = [
         __filename: 'readonly',
         fetch: 'readonly',
         Buffer: 'readonly',
+        structuredClone: 'readonly',
         setImmediate: 'readonly',
         setInterval: 'readonly',
         clearInterval: 'readonly',
@@ -26,7 +27,7 @@ module.exports = [
       },
     },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
   {
