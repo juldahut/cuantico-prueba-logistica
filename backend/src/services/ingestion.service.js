@@ -9,8 +9,6 @@ const { calculateDeliveryCost, normalizeEvents, EVENT_TYPES } = require('../doma
 const { sequelize } = db;
 const RULES_VERSION = 'v1';
 const RANK = new Map(EVENT_TYPES.map((type, i) => [type, i]));
-// Anomalias que dependen del calculo vigente: se abren y se resuelven solas.
-const CALCULATION_ANOMALIES = ['MISSING_PICKUP', 'BOTH_TERMINAL'];
 
 function sha256(value) {
   return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -45,9 +43,36 @@ function toDomainEvent(payload) {
   return event;
 }
 
+// Una anomalia que vuelve a ocurrir se reabre (resolved_at = null) en lugar de
+// quedar oculta como resuelta.
 async function recordAnomalies(rows, transaction) {
   if (rows.length === 0) return;
-  await db.Anomaly.bulkCreate(rows, { ignoreDuplicates: true, transaction });
+  await db.Anomaly.bulkCreate(
+    rows.map((row) => ({ ...row, resolvedAt: null })),
+    { updateOnDuplicate: ['resolvedAt'], conflictAttributes: ['dedupKey'], transaction },
+  );
+}
+
+async function resolveAnomaly(dedupKey, transaction) {
+  await db.Anomaly.update(
+    { resolvedAt: new Date() },
+    { where: { dedupKey, resolvedAt: null }, transaction },
+  );
+}
+
+// Anomalias que dependen del estado actual de la entrega: se abren cuando la
+// condicion aparece y se resuelven cuando desaparece.
+async function syncConditionAnomalies(delivery, conditions, transaction) {
+  const open = [];
+  for (const [code, active] of Object.entries(conditions)) {
+    const dedupKey = `${code}:${delivery.id}`;
+    if (active) {
+      open.push({ code, deliveryId: delivery.id, merchantId: delivery.merchantId, dedupKey });
+    } else {
+      await resolveAnomaly(dedupKey, transaction);
+    }
+  }
+  return open;
 }
 
 // Estado del ciclo de vida segun los eventos ordenados por occurredAt.
@@ -118,19 +143,20 @@ async function recalculate(delivery, merchant, transaction) {
   const tariffInstant = terminal ? terminal.occurredAt : ordered.at(-1).occurredAt;
   const tariff = await findTariff(delivery.merchantId, tariffInstant, transaction);
 
+  // BOTH_TERMINAL depende del estado proyectado, no de que haya tarifa: nunca
+  // se pierde aunque el costo no se pueda calcular.
+  anomalies.push(
+    ...(await syncConditionAnomalies(
+      delivery,
+      { BOTH_TERMINAL: status === 'inconsistente', NO_TARIFF: !tariff && Boolean(terminal) },
+      transaction,
+    )),
+  );
+
   if (!tariff) {
     delivery.costStatus = 'no_tariff';
     delivery.costAmount = null;
     delivery.currency = null;
-    if (terminal) {
-      anomalies.push({
-        code: 'NO_TARIFF',
-        deliveryId: delivery.id,
-        merchantId: delivery.merchantId,
-        detail: { instant: tariffInstant },
-        dedupKey: `NO_TARIFF:${delivery.id}`,
-      });
-    }
     await recordAnomalies(anomalies, transaction);
     await delivery.save({ transaction });
     return;
@@ -181,17 +207,13 @@ async function recalculate(delivery, merchant, transaction) {
     );
   }
 
-  for (const code of CALCULATION_ANOMALIES) {
-    const dedupKey = `${code}:${delivery.id}`;
-    if (result.reason === code) {
-      anomalies.push({ code, deliveryId: delivery.id, merchantId: delivery.merchantId, dedupKey });
-    } else {
-      await db.Anomaly.update(
-        { resolvedAt: new Date() },
-        { where: { dedupKey, resolvedAt: null }, transaction },
-      );
-    }
-  }
+  anomalies.push(
+    ...(await syncConditionAnomalies(
+      delivery,
+      { MISSING_PICKUP: result.reason === 'MISSING_PICKUP' },
+      transaction,
+    )),
+  );
   await recordAnomalies(anomalies, transaction);
 
   delivery.costStatus = result.status;
@@ -256,7 +278,7 @@ async function ingestEvent(body) {
           merchantId: delivery.merchantId,
           eventId: payload.eventId,
           detail: { receivedMerchantId: payload.merchantId },
-          dedupKey: `MERCHANT_MISMATCH:${payload.eventId}:${payloadHash}`,
+          dedupKey: `MERCHANT_MISMATCH:${payload.eventId}`,
         };
         throw new HttpError(409, 'MERCHANT_MISMATCH', 'La entrega pertenece a otro comercio.');
       }
@@ -302,8 +324,8 @@ async function ingestEvent(body) {
           deliveryId: existing.deliveryId,
           merchantId: existing.merchantId,
           eventId: payload.eventId,
-          detail: { storedHash: existing.payloadHash, receivedHash: payloadHash },
-          dedupKey: `EVENT_CONFLICT:${payload.eventId}:${payloadHash}`,
+          detail: null,
+          dedupKey: `EVENT_CONFLICT:${payload.eventId}`,
         };
         throw new HttpError(409, 'EVENT_CONFLICT', 'El eventId ya existe con contenido distinto.');
       }

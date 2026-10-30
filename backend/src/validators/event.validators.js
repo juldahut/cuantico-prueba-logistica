@@ -32,11 +32,21 @@ function isCoordinate(value) {
   );
 }
 
+// Tipos estrictos: express-validator aplica isInt/isIn a cada elemento si el
+// valor llega como arreglo, asi que se exige el tipo primitivo explicitamente.
+const isPositiveInt = (value) => Number.isSafeInteger(value) && value >= 1;
+const isId = (value) => typeof value === 'string' && ID_PATTERN.test(value);
+// Sin caracteres de control (el byte nulo rompe PostgreSQL y ensucia logs).
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
+
 const eventBody = [
-  body('eventId').isString().matches(ID_PATTERN).withMessage('eventId invalido.'),
-  body('deliveryId').isString().matches(ID_PATTERN).withMessage('deliveryId invalido.'),
-  body('merchantId').isInt({ min: 1 }).withMessage('merchantId debe ser un entero positivo.'),
-  body('type').isIn(EVENT_TYPES).withMessage('type no es un estado valido.'),
+  body('eventId').custom(isId).withMessage('eventId invalido.'),
+  body('deliveryId').custom(isId).withMessage('deliveryId invalido.'),
+  body('merchantId').custom(isPositiveInt).withMessage('merchantId debe ser un entero positivo.'),
+  body('type')
+    .custom((value) => typeof value === 'string' && EVENT_TYPES.includes(value))
+    .withMessage('type no es un estado valido.'),
   body('occurredAt')
     .custom(isInstantWithZone)
     .withMessage('occurredAt debe ser ISO 8601 con zona horaria (Z o +hh:mm).'),
@@ -47,12 +57,16 @@ const eventBody = [
       return isCoordinate(value);
     })
     .withMessage('location { lat, lon } es obligatoria en recogida y entregada.'),
-  body('courierId').optional().isInt({ min: 1 }).withMessage('courierId invalido.'),
+  body('courierId')
+    .optional()
+    .custom(isPositiveInt)
+    .withMessage('courierId debe ser un entero positivo.'),
   body('address')
     .optional()
-    .isString()
-    .isLength({ max: 200 })
-    .withMessage('address admite maximo 200 caracteres.'),
+    .custom(
+      (value) => typeof value === 'string' && value.length <= 200 && !CONTROL_CHARS.test(value),
+    )
+    .withMessage('address: texto de maximo 200 caracteres, sin caracteres de control.'),
 ];
 
 const anomaliesQuery = [

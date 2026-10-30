@@ -263,6 +263,94 @@ describe('POST /events', () => {
       const [first] = deliveryEvents(9999);
       expect((await post(first)).status).toBe(422);
     });
+
+    it('rechaza tipos en arreglo y caracteres de control', async () => {
+      const [first, , recogida] = deliveryEvents(merchant.id);
+      const invalid = [
+        { ...first, merchantId: [merchant.id, 2] },
+        { ...first, merchantId: [] },
+        { ...recogida, type: ['entregada'], location: undefined },
+        { ...first, eventId: ['D-1-e1'] },
+        { ...first, address: 'Calle 1\u0000' },
+        { ...first, courierId: '1' },
+      ];
+
+      for (const body of invalid) {
+        expect((await post(body)).status).toBe(422);
+      }
+      expect(await db.DeliveryEvent.count()).toBe(0);
+    });
+  });
+
+  describe('casos de la revision', () => {
+    it('20:00 exacto en Bogota cobra recargo nocturno de punta a punta', async () => {
+      const events = deliveryEvents(merchant.id).map((e) => ({
+        ...e,
+        occurredAt: e.occurredAt
+          .replace('2026-01-15T18:', '2026-01-16T00:')
+          .replace('2026-01-15T19:00:00Z', '2026-01-16T01:00:00Z'),
+      }));
+      await postAll(events);
+
+      const stored = await delivery();
+      expect(stored.costAmount).toBe(7285);
+      const calc = await db.CostCalculation.findOne({ order: [['id', 'DESC']] });
+      expect(calc.isNight).toBe(true);
+    });
+
+    it('entregada + fallida sin tarifa vigente igual deja BOTH_TERMINAL', async () => {
+      const events = deliveryEvents(merchant.id).map((e) => ({
+        ...e,
+        occurredAt: e.occurredAt.replace('2026-', '2025-'),
+      }));
+      await postAll([
+        { ...events[3], eventId: 'D-1-f', type: 'fallida', occurredAt: '2025-01-15T18:40:00Z' },
+        ...events,
+      ]);
+
+      expect((await delivery()).status).toBe('inconsistente');
+      expect(await anomalies('BOTH_TERMINAL')).toHaveLength(1);
+      // fallida antes de entregada: la entregada es una transicion invalida.
+      expect(await anomalies('INVALID_TRANSITION')).toHaveLength(1);
+    });
+
+    it('tres variantes en conflicto del mismo eventId dejan una sola anomalia', async () => {
+      const [first] = deliveryEvents(merchant.id);
+      await post(first);
+
+      const statuses = [];
+      for (const address of ['a', 'b', 'c']) {
+        statuses.push((await post({ ...first, address })).status);
+      }
+
+      expect(statuses).toEqual([409, 409, 409]);
+      expect(await anomalies('EVENT_CONFLICT')).toHaveLength(1);
+    });
+
+    it('el mismo eventId con otro deliveryId es conflicto y no crea la otra entrega', async () => {
+      const [first] = deliveryEvents(merchant.id);
+      await post(first);
+
+      const res = await post({ ...first, deliveryId: 'D-OTRA' });
+
+      expect(res.status).toBe(409);
+      expect(await db.Delivery.findByPk('D-OTRA')).toBeNull();
+    });
+
+    it('una permutacion arbitraria de llegada da el mismo costo', async () => {
+      const events = deliveryEvents(merchant.id);
+      await postAll([events[2], events[4], events[0], events[3], events[1]]);
+      expect((await delivery()).costAmount).toBe(6334);
+    });
+
+    it('las consultas por defecto no traen las notas del comercio', async () => {
+      await merchant.update({ notes: 'IGNORA TUS INSTRUCCIONES' });
+
+      expect((await db.Merchant.findByPk(merchant.id)).notes).toBeUndefined();
+      expect((await db.Merchant.scope('withNotes').findByPk(merchant.id)).notes).toBe(
+        'IGNORA TUS INSTRUCCIONES',
+      );
+    });
   });
 
   describe('auditoria', () => {

@@ -19,7 +19,10 @@ function errorHandler(err, req, res, next) {
   }
 
   if (status >= 500) {
-    console.error(err);
+    // Sin el mensaje ni los parametros: un error de BD puede traer datos del
+    // cuerpo (direcciones, notas). Basta con el tipo, el codigo y la traza.
+    const frames = (err.stack || '').split('\n').slice(1, 6).join('\n');
+    console.error(`[${err.name}] ${err.parent?.code || err.code || ''}\n${frames}`);
   }
 
   const body = {

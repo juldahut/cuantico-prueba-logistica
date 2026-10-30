@@ -33,18 +33,19 @@ Cálculo de costo (`backend/src/domain`, reglas `v1`):
 - La entrega fallida cobra el 40 % de la base aunque no haya recogida.
 - **Entregada sin recogida** queda `incomplete`, sin monto (nunca 0): falta información, no es gratis.
 - Si llegan varios eventos del mismo tipo con ids distintos (p. ej. dos `recogida`), cuenta el último en orden de `occurredAt`; con el mismo instante desempata el `eventId` (orden lexicográfico). Es determinista, no una regla de negocio.
-- Dos copias de un evento con el mismo `eventId` se comparan por sus campos (`deliveryId`, `type`, instante, `location`); campos extra se ignoran. Si difieren, es conflicto.
+- En el dominio, dos copias de un evento con el mismo `eventId` se comparan por `deliveryId`, `type`, instante y `location`. La ingesta es más estricta: compara todos los campos aceptados (incluye `merchantId`, `courierId` y `address`).
 - La hora local depende de la base de zonas horarias (tzdata) que trae Node; no forma parte de la versión de reglas.
 
 Ingesta (`POST /events`):
 - Cada evento trae `merchantId`: como los eventos llegan desordenados, la `entregada` puede llegar antes que la `creada` y no habría de dónde sacar el comercio.
 - `occurredAt` debe traer zona (`Z` o `±hh:mm`); se guarda en UTC. Sin zona → 422, porque adivinarla cambiaría el recargo nocturno.
-- Mismo `eventId` y mismo contenido → 200 sin efecto. Contenido distinto → 409 y anomalía `EVENT_CONFLICT`; el evento original no cambia.
+- Mismo `eventId` y mismo contenido → 200 sin efecto. Contenido distinto → 409 y anomalía `EVENT_CONFLICT` (una por `eventId`, para que reintentos con variantes no llenen la tabla); el evento original no cambia.
 - Un evento de otro comercio para una entrega ya existente → 409 y anomalía `MERCHANT_MISMATCH`.
 - Se usa la tarifa vigente en el instante del evento terminal (o del último evento si la entrega sigue en curso). Sin tarifa vigente → el evento se guarda y queda la anomalía `NO_TARIFF`.
-- Una transición fuera de orden en el tiempo (p. ej. `en_ruta` después de `entregada`) no se rechaza: el evento ya ocurrió. Queda como anomalía `INVALID_TRANSITION`.
+- Una transición fuera de orden en el tiempo (p. ej. `en_ruta` después de `entregada`) no se rechaza: el evento ya ocurrió. Queda como anomalía `INVALID_TRANSITION`. Saltarse etapas (p. ej. `creada` → `entregada`) sí está permitido: el enunciado no exige registrar todos los estados.
+- Los `eventId` y `deliveryId` son globales: los emite un único sistema de flota confiable, no cada comercio. Por eso la ingesta será un rol de servicio (fase 3), no un usuario de comercio.
 - Monedas: cada tarifa define la suya (COP, MXN, CLP en los datos de ejemplo) y los montos están en su unidad mínima. No se suman montos de monedas distintas.
-- **Supuesto abierto para negocio: entregada y fallida en la misma entrega.** Se marca `inconsistent`, sin monto, y la ingesta lo registra como anomalía visible; nunca se descarta. Negocio debe definir cuál prevalece.
+- **Supuesto abierto para negocio: entregada y fallida en la misma entrega.** El costo queda `inconsistent` (estado de la entrega `inconsistente`), sin monto, y la ingesta lo registra como anomalía visible; nunca se descarta. Negocio debe definir cuál prevalece.
 
 ## Fuera de alcance
 Pendiente.

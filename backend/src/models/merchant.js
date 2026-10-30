@@ -10,7 +10,14 @@ module.exports = (sequelize, DataTypes) => {
       notes: { type: DataTypes.TEXT },
       deliveryInstructions: { type: DataTypes.TEXT },
     },
-    { tableName: 'merchants', underscored: true },
+    {
+      tableName: 'merchants',
+      underscored: true,
+      // Las notas no viajan por defecto: solo quien las pide explicitamente
+      // (scope 'withNotes') las recibe, y siempre como dato no confiable.
+      defaultScope: { attributes: { exclude: ['notes', 'deliveryInstructions'] } },
+      scopes: { withNotes: {} },
+    },
   );
 
   Merchant.associate = (db) => {

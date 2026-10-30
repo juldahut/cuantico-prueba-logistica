@@ -25,4 +25,7 @@ const authLimiter = buildLimiter({ windowMs: 15 * 60 * 1000, limit: 10 });
 // Agente conversacional: cada mensaje puede costar tokens del proveedor de LLM.
 const agentLimiter = buildLimiter({ windowMs: 60 * 1000, limit: 20 });
 
-module.exports = { authLimiter, agentLimiter };
+// Ingesta: margen amplio para el emisor, pero con techo frente a abuso.
+const ingestLimiter = buildLimiter({ windowMs: 60 * 1000, limit: 600 });
+
+module.exports = { authLimiter, agentLimiter, ingestLimiter };
