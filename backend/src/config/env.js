@@ -2,6 +2,8 @@
 
 require('dotenv').config({ quiet: true });
 
+const { intFromEnv } = require('./parse');
+
 function required(name) {
   const value = process.env[name];
 
@@ -36,4 +38,16 @@ module.exports = {
   // Opcionales. Solo se leen si LLM_PROVIDER=gemini. Nunca van en el codigo.
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || '',
+  // Tiempo maximo de espera de una llamada al LLM, en ms. Aplica por intento:
+  // el SDK de Anthropic reintenta hasta 2 veces, asi que el peor caso de una
+  // llamada es mayor.
+  llmTimeoutMs: intFromEnv('LLM_TIMEOUT_MS', { defaultValue: 30000 }),
+  // Limites de peticiones por minuto. Ingesta: por cuenta autenticada (IP de
+  // respaldo); el default de 600 es conservador para una cuenta de demo, y un
+  // emisor real a escala del ADR 0001 sube INGEST_RPM. Agente: por usuario.
+  ingestRpm: intFromEnv('INGEST_RPM', { defaultValue: 600 }),
+  agentRpm: intFromEnv('AGENT_RPM', { defaultValue: 20 }),
+  // Saltos de proxy confiables (balanceador, nginx). null = sin configurar: no
+  // se confia en X-Forwarded-For y el limitador ve la IP del ultimo salto.
+  trustProxy: intFromEnv('TRUST_PROXY', { defaultValue: null, min: 0, max: 32 }),
 };

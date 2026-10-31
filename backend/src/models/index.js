@@ -6,6 +6,7 @@ const { Sequelize, DataTypes } = require('sequelize');
 
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
+const { runtimeOptions } = require('../config/dbRuntime');
 const config = require('../config/config.js')[env];
 
 const databaseUrl = process.env[config.use_env_variable];
@@ -16,7 +17,8 @@ if (!databaseUrl) {
   );
 }
 
-const sequelize = new Sequelize(databaseUrl, config);
+// Pool y timeouts solo para el runtime (la CLI usa config.js sin ellos).
+const sequelize = new Sequelize(databaseUrl, runtimeOptions(config));
 
 const db = {};
 

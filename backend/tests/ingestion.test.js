@@ -9,6 +9,7 @@ const {
   createMerchant,
   createUser,
   deliveryEvents,
+  PICKUP,
   DROPOFF,
 } = require('./helpers');
 
@@ -362,6 +363,201 @@ describe('POST /events', () => {
       expect((await db.Merchant.scope('withNotes').findByPk(merchant.id)).notes).toBe(
         'IGNORA TUS INSTRUCCIONES',
       );
+    });
+  });
+
+  describe('entrega fallida desde cada etapa', () => {
+    // 02:00Z = 21:00 en Bogota: de noche, para comprobar que no hay recargo.
+    const FAILED_AT = '2026-01-16T02:00:00Z';
+    const STAGES = {
+      creada: ['creada'],
+      asignada: ['creada', 'asignada'],
+      recogida: ['creada', 'asignada', 'recogida'],
+      en_ruta: ['creada', 'asignada', 'recogida', 'en_ruta'],
+    };
+
+    it.each(Object.entries(STAGES))(
+      'fallida desde %s cobra el 40%% de la base, sin distancia ni recargo',
+      async (_stage, types) => {
+        // Base 5000 x 40 % = 2000.
+        const previous = deliveryEvents(merchant.id).filter((e) => types.includes(e.type));
+        const failure = {
+          eventId: 'D-1-f',
+          deliveryId: 'D-1',
+          merchantId: merchant.id,
+          type: 'fallida',
+          occurredAt: FAILED_AT,
+        };
+
+        const responses = await postAll([...previous, failure]);
+
+        expect(responses.every((r) => r.status === 201)).toBe(true);
+        const stored = await delivery();
+        expect(stored.status).toBe('fallida');
+        expect(stored.costStatus).toBe('failed');
+        expect(stored.costAmount).toBe(2000);
+        const calc = await db.CostCalculation.findOne({ order: [['id', 'DESC']] });
+        expect(calc).toMatchObject({
+          status: 'failed',
+          amount: 2000,
+          isNight: null,
+          distanceMeters: null,
+          breakdown: { base: 2000, distance: 0, nightSurcharge: 0 },
+        });
+        expect(await db.Anomaly.count()).toBe(0);
+      },
+    );
+  });
+
+  describe('saltos de etapas', () => {
+    const without = (...skipped) =>
+      deliveryEvents(merchant.id).filter((e) => !skipped.includes(e.type));
+
+    it('creada -> recogida sin asignada cobra normal y no deja anomalias', async () => {
+      const responses = await postAll(without('asignada'));
+
+      expect(responses.every((r) => r.status === 201)).toBe(true);
+      const stored = await delivery();
+      expect(stored.status).toBe('entregada');
+      expect(stored.costAmount).toBe(6334);
+      expect(await db.Anomaly.count()).toBe(0);
+    });
+
+    it('creada -> recogida -> entregada, sin asignada ni en_ruta, tambien cobra', async () => {
+      await postAll(without('asignada', 'en_ruta'));
+
+      expect((await delivery()).costAmount).toBe(6334);
+      expect(await db.Anomaly.count()).toBe(0);
+    });
+
+    it('creada -> entregada queda incomplete, sin monto, con MISSING_PICKUP abierta', async () => {
+      await postAll(without('asignada', 'recogida', 'en_ruta'));
+
+      const stored = await delivery();
+      expect(stored.status).toBe('entregada');
+      expect(stored.costStatus).toBe('incomplete');
+      expect(stored.costAmount).toBeNull();
+      const [open] = await anomalies('MISSING_PICKUP');
+      expect(open.resolvedAt).toBeNull();
+      expect(await anomalies('INVALID_TRANSITION')).toHaveLength(0);
+    });
+  });
+
+  describe('zona horaria del comercio', () => {
+    // Entrega completa cuyo evento terminal ocurre en deliveredAt (UTC). El resto
+    // de eventos van antes. Recorrido de 1112 m con tarifa 5000 + 1200/km:
+    //   diurno   = 5000 + 1112 x 1,2 = 6334,4            -> 6334
+    //   nocturno = 6334,4 x 1,15     = 7284,56 (una vez) -> 7285
+    const DAY = 6334;
+    const NIGHT = 7285;
+
+    function deliveryEndingAt(merchantId, deliveredAt, deliveryId) {
+      const end = Date.parse(deliveredAt);
+      const at = (minutesBefore) => new Date(end - minutesBefore * 60_000).toISOString();
+      const base = { deliveryId, merchantId };
+      return [
+        { ...base, eventId: `${deliveryId}-e1`, type: 'creada', occurredAt: at(90) },
+        { ...base, eventId: `${deliveryId}-e2`, type: 'asignada', occurredAt: at(80) },
+        {
+          ...base,
+          eventId: `${deliveryId}-e3`,
+          type: 'recogida',
+          occurredAt: at(60),
+          location: PICKUP,
+        },
+        { ...base, eventId: `${deliveryId}-e4`, type: 'en_ruta', occurredAt: at(50) },
+        {
+          ...base,
+          eventId: `${deliveryId}-e5`,
+          type: 'entregada',
+          occurredAt: deliveredAt,
+          location: DROPOFF,
+        },
+      ];
+    }
+
+    async function deliverIn(timeZone, deliveredAt, deliveryId = 'D-TZ') {
+      const { merchant: shop } = await createMerchant({ name: `Comercio ${timeZone}`, timeZone });
+      const responses = await postAll(deliveryEndingAt(shop.id, deliveredAt, deliveryId));
+      expect(responses.every((r) => r.status === 201)).toBe(true);
+      const stored = await delivery(deliveryId);
+      const calc = await db.CostCalculation.findOne({
+        where: { deliveryId },
+        order: [['id', 'DESC']],
+      });
+      return { stored, calc };
+    }
+
+    it('el mismo instante UTC cobra segun la zona del comercio, no la del servidor', async () => {
+      // 2026-01-16T01:00Z = 20:00 Bogota (UTC-5) | 19:00 Mexico (UTC-6)
+      //                   | 22:00 Santiago (UTC-3, verano) | 06:30 Kolkata (UTC+5:30)
+      const instant = '2026-01-16T01:00:00Z';
+      const expected = [
+        ['America/Bogota', NIGHT],
+        ['America/Mexico_City', DAY],
+        ['America/Santiago', NIGHT],
+        ['Asia/Kolkata', DAY],
+      ];
+
+      for (const [i, [timeZone, amount]] of expected.entries()) {
+        const { stored, calc } = await deliverIn(timeZone, instant, `D-TZ-${i}`);
+
+        expect([timeZone, stored.costAmount]).toEqual([timeZone, amount]);
+        expect(calc.timeZone).toBe(timeZone);
+        expect(calc.isNight).toBe(amount === NIGHT);
+      }
+    });
+
+    // Fronteras locales de las 20:00 y las 06:00 en zonas distintas de Bogota.
+    // Verano austral: Santiago esta en UTC-3. Kolkata es UTC+5:30 sin horario de verano.
+    it.each([
+      ['America/Mexico_City', '20:00:00 local exacto', '2026-01-17T02:00:00Z', NIGHT],
+      ['America/Mexico_City', '19:59:59 local', '2026-01-17T01:59:59Z', DAY],
+      ['America/Santiago', '20:00:00 local exacto', '2026-01-16T23:00:00Z', NIGHT],
+      ['America/Santiago', '19:59:59 local', '2026-01-16T22:59:59Z', DAY],
+      ['Asia/Kolkata', '20:00:00 local exacto', '2026-01-16T14:30:00Z', NIGHT],
+      ['Asia/Kolkata', '19:59:59 local', '2026-01-16T14:29:59Z', DAY],
+      ['Asia/Kolkata', '06:00:00 local exacto', '2026-01-16T00:30:00Z', DAY],
+      ['Asia/Kolkata', '05:59:59 local', '2026-01-16T00:29:59Z', NIGHT],
+    ])('%s, %s (%s) cobra %i', async (timeZone, _label, deliveredAt, amount) => {
+      const { stored, calc } = await deliverIn(timeZone, deliveredAt);
+
+      expect(stored.costStatus).toBe('calculated');
+      expect(stored.costAmount).toBe(amount);
+      expect(calc.isNight).toBe(amount === NIGHT);
+    });
+  });
+
+  describe('distancia cero', () => {
+    it('recogida y entrega en el mismo punto, de noche: el recargo aplica solo sobre la base', async () => {
+      // 02:00Z = 21:00 en Bogota. Base 5000 x 1,15 = 5750; 0 m no suman nada.
+      const base = { deliveryId: 'D-0', merchantId: merchant.id };
+      await postAll([
+        { ...base, eventId: 'D-0-e1', type: 'creada', occurredAt: '2026-01-16T01:00:00Z' },
+        {
+          ...base,
+          eventId: 'D-0-e3',
+          type: 'recogida',
+          occurredAt: '2026-01-16T01:30:00Z',
+          location: DROPOFF,
+        },
+        {
+          ...base,
+          eventId: 'D-0-e5',
+          type: 'entregada',
+          occurredAt: '2026-01-16T02:00:00Z',
+          location: DROPOFF,
+        },
+      ]);
+
+      const stored = await delivery('D-0');
+      expect(stored.costAmount).toBe(5750);
+      const calc = await db.CostCalculation.findOne({ order: [['id', 'DESC']] });
+      expect(calc).toMatchObject({
+        isNight: true,
+        distanceMeters: 0,
+        breakdown: { base: 5000, distance: 0, nightSurcharge: 750 },
+      });
     });
   });
 

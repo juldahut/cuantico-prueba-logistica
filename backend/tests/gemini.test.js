@@ -1,5 +1,7 @@
 'use strict';
 
+/* global DOMException */
+
 const { ApiError } = require('@google/genai');
 const { createGeminiProvider, DEFAULT_MODEL } = require('../src/agent/providers/gemini');
 const { createProvider } = require('../src/agent/providers');
@@ -111,6 +113,15 @@ describe('proveedor gemini: traduccion de la peticion y la respuesta', () => {
     expect(provider.isProviderError(new Error('otro'))).toBe(false);
   });
 
+  it('un timeout (AbortError del fetch) tambien es error del proveedor', () => {
+    const provider = createGeminiProvider({ apiKey: 'k', client: fakeClient([]) });
+    const abort = new DOMException('This operation was aborted', 'AbortError');
+    const timeout = new DOMException('The operation timed out', 'TimeoutError');
+    expect(provider.isProviderError(abort)).toBe(true);
+    expect(provider.isProviderError(timeout)).toBe(true);
+    expect(provider.isProviderError(new TypeError('fetch failed'))).toBe(false);
+  });
+
   it('LLM_PROVIDER=gemini selecciona este proveedor con GEMINI_MODEL', () => {
     const provider = createProvider({
       llmProvider: 'gemini',
@@ -181,9 +192,11 @@ describe('proveedor gemini en el bucle del agente', () => {
     });
 
     expect(result).toMatchObject({ verified: true, stopReason: 'end_turn', provider: 'gemini' });
-    expect(result.toolCalls[0].output.totals).toEqual([{ currency: 'COP', amount: 6334 }]);
+    expect(result.toolCalls[1].output.totals).toEqual([{ currency: 'COP', amount: 6334 }]);
 
-    const [userTurn, modelTurnReplayed, toolTurn] = client.requests[1].contents;
+    // contents: pregunta + intercambio list_merchants del servidor, y luego el
+    // turno del modelo con su functionCall y la respuesta de la tool.
+    const [userTurn, , , modelTurnReplayed, toolTurn] = client.requests[1].contents;
     expect(userTurn.role).toBe('user');
     // El turno del modelo se reenvia tal cual, con su thoughtSignature.
     expect(modelTurnReplayed).toEqual({ role: 'model', parts: [callPart] });
@@ -219,10 +232,38 @@ describe('proveedor gemini en el bucle del agente', () => {
       now: NOW,
     });
 
-    expect(result.toolCalls[0].error).toBe('FORBIDDEN');
-    const { functionResponse } = client.requests[1].contents[2].parts[0];
+    expect(result.toolCalls[1].error).toBe('FORBIDDEN');
+    const { functionResponse } = client.requests[1].contents[4].parts[0];
     expect(functionResponse).toMatchObject({ id: 'fc-1', name: 'get_merchant_totals' });
     expect(functionResponse.response.error.error).toBe('FORBIDDEN');
+  });
+
+  it('traduce el list_merchants del servidor a functionCall + functionResponse', async () => {
+    const client = fakeClient([modelTurn([{ text: 'Hola.' }])]);
+
+    const result = await runAgent({
+      user,
+      message: 'hola',
+      provider: createGeminiProvider({ apiKey: 'k', client }),
+      now: NOW,
+    });
+
+    // Una sola llamada al modelo: la lista ya viene resuelta.
+    expect(client.requests).toHaveLength(1);
+    expect(result.steps).toBe(1);
+    const [question, call, answer] = client.requests[0].contents;
+    expect(question).toEqual({ role: 'user', parts: [{ text: 'hola' }] });
+    // Sin thoughtSignature: es opcional en el SDK y gemini-2.5-flash no la exige.
+    expect(call).toEqual({
+      role: 'model',
+      parts: [{ functionCall: { name: 'list_merchants', args: {} } }],
+    });
+    expect(answer.role).toBe('user');
+    expect(answer.parts).toHaveLength(1);
+    const { functionResponse } = answer.parts[0];
+    expect(functionResponse.name).toBe('list_merchants');
+    // Alcance del usuario de la sesion: solo Tienda La 80.
+    expect(functionResponse.response.output.merchants.map((m) => m.name)).toEqual(['Tienda La 80']);
   });
 
   it('una cifra inventada por Gemini tampoco pasa la verificacion', async () => {

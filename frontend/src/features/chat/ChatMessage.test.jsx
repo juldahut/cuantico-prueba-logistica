@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import ChatMessage from './ChatMessage.jsx';
 
@@ -77,18 +78,29 @@ describe('ChatMessage', () => {
     expectHumanText();
   });
 
-  it('el panel de datos consultados usa nombres comunes y explica los errores en palabras', () => {
+  it('los datos consultados son una linea discreta con el detalle bajo demanda; los errores se explican', async () => {
     renderMessage({
       text: 'x',
       verified: true,
       toolCalls: [totalsCall, { name: 'explain_cost', input: {}, error: 'NOT_FOUND' }, notesCall],
     });
 
-    const panel = screen.getByText('Datos consultados (3)').closest('details');
-    expect(within(panel).getByText('Facturación del periodo')).toBeInTheDocument();
+    const panel = screen.getByRole('region', { name: 'Datos consultados' });
+    expect(panel.closest('details')).toBeNull();
+    // Una linea que dice que se consulto, sin tarjetas hasta que se pida el detalle.
+    expect(
+      within(panel).getByText(/facturación de Tienda La 80 del 19 al 25 de octubre de 2026/),
+    ).toBeVisible();
+    expect(within(panel).queryByText('Entregas terminadas')).not.toBeInTheDocument();
     expect(within(panel).getByText(/Detalle del costo de una entrega/)).toBeInTheDocument();
     expect(within(panel).getByText(/no tienes acceso a ese dato o no existe/)).toBeInTheDocument();
+    await userEvent.click(within(panel).getByRole('button', { name: 'Ver detalle' }));
+    expect(within(panel).getByRole('heading', { name: 'Tienda La 80' })).toBeInTheDocument();
     expect(within(panel).getByText('6.334 COP')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Ocultar detalle' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     expectHumanText();
   });
 
@@ -174,7 +186,8 @@ describe('ChatMessage: casos limite', () => {
         },
       ],
     });
-    expect(screen.getAllByText('America/Bogota').length).toBeGreaterThan(0);
+    // Comercios y periodo son plomeria: con otras consultas no se muestran.
+    expect(screen.queryByText('America/Bogota')).not.toBeInTheDocument();
     expect(screen.getAllByRole('heading', { name: 'Ana' }).length).toBeGreaterThan(0);
     expect(screen.getAllByText('En ruta').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Recargo nocturno').length).toBeGreaterThan(0);
@@ -200,5 +213,82 @@ describe('ChatMessage: casos limite', () => {
     const quote = screen.getByRole('figure');
     expect(quote.textContent).toMatch(/línea 1\s*línea 2/);
     expect(within(quote).getByText(/Portería\./)).toBeInTheDocument();
+  });
+});
+
+describe('ChatMessage: modo simulado y plomeria', () => {
+  const merchantsCall = {
+    name: 'list_merchants',
+    input: {},
+    output: { merchants: [{ id: 1, name: 'Tienda La 80', time_zone: 'America/Bogota' }] },
+  };
+
+  it('muestra la insignia Modo simulado cuando responde el proveedor fake', () => {
+    renderMessage({ text: 'Listo.', verified: true, provider: 'fake', toolCalls: [] });
+    const badge = screen.getByText('Modo simulado');
+    expect(badge).toHaveAttribute('title', expect.stringMatching(/no por un modelo de IA/));
+  });
+
+  it.each(['gemini', 'anthropic', undefined])('no muestra Modo simulado con proveedor %s', (p) => {
+    renderMessage({ text: 'Listo.', verified: true, provider: p, toolCalls: [] });
+    expect(screen.queryByText('Modo simulado')).not.toBeInTheDocument();
+  });
+
+  it('list_merchants no aparece en Datos consultados', () => {
+    renderMessage({ text: 'x', verified: true, toolCalls: [merchantsCall, totalsCall] });
+    const panel = screen.getByRole('region', { name: 'Datos consultados' });
+    expect(within(panel).getByText(/facturación de Tienda La 80/)).toBeInTheDocument();
+    expect(screen.queryByText(/Comercios a los que tienes acceso/)).not.toBeInTheDocument();
+    expectHumanText();
+  });
+
+  it('si solo hubo list_merchants no se muestra el panel', () => {
+    renderMessage({ text: 'x', verified: true, toolCalls: [merchantsCall] });
+    expect(screen.queryByText(/Datos consultados/)).not.toBeInTheDocument();
+  });
+
+  it('list_merchants tampoco aparece en el resumen de cifras sin verificar', () => {
+    renderMessage({ text: 'x', verified: false, toolCalls: [merchantsCall] });
+    expect(screen.getByText('Cifras sin verificar')).toBeInTheDocument();
+    expect(screen.queryByText(/Comercios a los que tienes acceso/)).not.toBeInTheDocument();
+    expect(screen.queryByText('America/Bogota')).not.toBeInTheDocument();
+  });
+});
+
+describe('ChatMessage: datos consultados sin ruido', () => {
+  it('con la respuesta verificada solo se ve la linea; el periodo no se repite aparte', () => {
+    renderMessage({
+      text: 'Tienda La 80 facturó 6.334 COP.',
+      verified: true,
+      toolCalls: [
+        {
+          name: 'resolve_period',
+          output: { from: '2026-10-19', last_day: '2026-10-25', time_zone: 'America/Bogota' },
+        },
+        totalsCall,
+      ],
+    });
+    const panel = screen.getByRole('region', { name: 'Datos consultados' });
+    expect(
+      within(panel).getByText(/facturación de Tienda La 80 del 19 al 25 de octubre de 2026/),
+    ).toBeVisible();
+    expect(within(panel).queryByText(/periodo del/)).not.toBeInTheDocument();
+    expect(within(panel).queryByText('Entregas terminadas')).not.toBeInTheDocument();
+    expect(document.querySelector('details')).toBeNull();
+  });
+
+  it('cuando los datos son la respuesta (busqueda o cifras sin verificar) el detalle viene abierto', () => {
+    renderMessage({ text: 'x', verified: false, toolCalls: [totalsCall] });
+    const panel = screen.getByRole('region', { name: 'Datos consultados' });
+    expect(within(panel).getByText('Entregas terminadas')).toBeVisible();
+    expect(within(panel).getByRole('button', { name: 'Ocultar detalle' })).toBeInTheDocument();
+  });
+
+  it('una respuesta solo de notas dice que se consultaron, sin boton de detalle: la cita ya lo muestra', () => {
+    renderMessage({ text: 'Te muestro las notas.', verified: true, toolCalls: [notesCall] });
+    const panel = screen.getByRole('region', { name: 'Datos consultados' });
+    expect(within(panel).getByText(/notas de Tienda La 80/)).toBeVisible();
+    expect(within(panel).queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('figure')).toBeInTheDocument();
   });
 });

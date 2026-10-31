@@ -10,6 +10,7 @@ import ChatMessage from './ChatMessage.jsx';
 
 const MAX_MESSAGE = 1000;
 const MAX_HISTORY = 10;
+const DELAYS = ['retardo-2', 'retardo-3', 'retardo-4'];
 const ROLES = { admin: 'Administrador', operaciones: 'Operaciones' };
 
 // Preguntas de ejemplo por tema. Usan el primer comercio del usuario, si tiene.
@@ -49,6 +50,7 @@ export default function ChatPage({ token, user, onLogout }) {
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [provider, setProvider] = useState(null);
   const [lastQuestion, setLastQuestion] = useState(null);
   const endRef = useRef(null);
   const topics = topicsFor(user);
@@ -79,6 +81,7 @@ export default function ChatPage({ token, user, onLogout }) {
 
     try {
       const res = await apiPost('/agent/chat', { message: question, history }, token);
+      setProvider(res.provider ?? null);
       setMessages((prev) => [
         ...prev,
         {
@@ -88,6 +91,7 @@ export default function ChatPage({ token, user, onLogout }) {
           verified: res.verified,
           stopReason: res.stopReason,
           toolCalls: res.toolCalls,
+          provider: res.provider,
         },
       ]);
     } catch (err) {
@@ -95,7 +99,8 @@ export default function ChatPage({ token, user, onLogout }) {
         onLogout();
         return;
       }
-      setError(err.message);
+      // 429 (limite de uso): reintentar al instante solo agrava el limite.
+      setError({ message: err.message, retryable: err.status !== 429 });
     } finally {
       setLoading(false);
     }
@@ -116,40 +121,56 @@ export default function ChatPage({ token, user, onLogout }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <header className="sobre-oscuro bg-morado text-white">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <Wordmark />
-            <p className="text-xs text-lavanda">Asistente de operaciones</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {started && (
-              <Button variant="onDark" onClick={reset} disabled={loading}>
-                Nueva conversación
-              </Button>
-            )}
-            <Button variant="onDark" onClick={onLogout}>
-              Salir
-            </Button>
-          </div>
-        </div>
-        <div className="linea-marca" aria-hidden="true" />
-      </header>
-
-      <div className="border-b border-borde bg-lila-claro">
-        <p className="mx-auto max-w-4xl px-4 py-2 text-sm text-tinta-suave">
-          <span className="font-semibold">{user.email}</span> · {ROLES[user.role] ?? user.role}
-          {merchants.length > 0 && (
-            <>
-              {' '}
-              · Consultas de{' '}
-              <span className="font-semibold">{merchants.map((m) => m.name).join(', ')}</span>
-              {merchants.length === 1 && merchants[0].timeZone && (
-                <span> (hora de {merchants[0].timeZone})</span>
+      {/* Cabecera y franja de contexto fijas: no se pierden al hacer varias consultas. */}
+      <div className="sticky top-0 z-30 shadow-tarjeta">
+        <header className="sobre-oscuro relative isolate overflow-hidden bg-morado text-white">
+          <div
+            className="orbe orbe-violeta -left-16 -top-24 -z-10 h-56 w-56 opacity-40"
+            aria-hidden="true"
+          />
+          <div
+            className="orbe orbe-cian -right-10 -top-28 -z-10 h-48 w-48 opacity-25"
+            aria-hidden="true"
+          />
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div>
+              <Wordmark />
+              <p className="text-xs text-lavanda">Asistente de operaciones</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {started && (
+                <Button variant="onDark" onClick={reset} disabled={loading}>
+                  Nueva conversación
+                </Button>
               )}
-            </>
+              <Button variant="onDark" onClick={onLogout}>
+                Salir
+              </Button>
+            </div>
+          </div>
+          <div className="linea-marca" aria-hidden="true" />
+        </header>
+
+        <div className="border-b border-borde bg-lila-claro">
+          <p className="mx-auto max-w-4xl px-4 py-2 text-sm text-tinta-suave">
+            <span className="font-semibold">{user.email}</span> · {ROLES[user.role] ?? user.role}
+            {merchants.length > 0 && (
+              <>
+                {' '}
+                · Consultas de{' '}
+                <span className="font-semibold">{merchants.map((m) => m.name).join(', ')}</span>
+                {merchants.length === 1 && merchants[0].timeZone && (
+                  <span> (hora de {merchants[0].timeZone})</span>
+                )}
+              </>
+            )}
+          </p>
+          {provider === 'fake' && (
+            <p className="mx-auto max-w-4xl px-4 pb-2 text-sm font-semibold text-aviso">
+              Modo simulado: las respuestas las arman reglas, no un modelo de IA
+            </p>
           )}
-        </p>
+        </div>
       </div>
 
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-6">
@@ -165,10 +186,10 @@ export default function ChatPage({ token, user, onLogout }) {
                 sistema y te responde. Solo lee datos: no cambia nada.
               </p>
               <ul className="mt-6 grid gap-4 sm:grid-cols-3">
-                {topics.map((topic) => (
+                {topics.map((topic, index) => (
                   <li
                     key={topic.title}
-                    className="flex flex-col gap-3 rounded-tarjeta border border-borde p-4 shadow-tarjeta"
+                    className={`anim-subir flex flex-col gap-3 rounded-tarjeta border border-borde p-4 shadow-tarjeta transition-transform duration-200 ease-estandar hover:-translate-y-1 ${DELAYS[index] ?? ''}`}
                   >
                     <div>
                       <h3 className="text-lg text-tinta">{topic.title}</h3>
@@ -192,7 +213,7 @@ export default function ChatPage({ token, user, onLogout }) {
               <p className="mt-6 text-sm text-tinta-tenue">
                 <span className="font-semibold text-exito">✓ Verificado</span> significa que las
                 cifras de la respuesta coinciden con los datos del sistema. Bajo cada respuesta
-                puedes abrir «Datos consultados» para ver de dónde salieron.
+                verás «Datos consultados»: lo que se consultó en el sistema.
               </p>
             </div>
           ) : (
@@ -215,7 +236,7 @@ export default function ChatPage({ token, user, onLogout }) {
 
           {error && (
             <div className="mt-5">
-              <ErrorState message={error} onRetry={retry} />
+              <ErrorState message={error.message} onRetry={error.retryable ? retry : undefined} />
             </div>
           )}
           <div ref={endRef} />

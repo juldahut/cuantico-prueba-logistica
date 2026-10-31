@@ -15,9 +15,14 @@ function createProvider(config) {
       return createAnthropicProvider({
         apiKey: config.anthropicApiKey,
         model: config.anthropicModel,
+        timeoutMs: config.llmTimeoutMs,
       });
     case 'gemini':
-      return createGeminiProvider({ apiKey: config.geminiApiKey, model: config.geminiModel });
+      return createGeminiProvider({
+        apiKey: config.geminiApiKey,
+        model: config.geminiModel,
+        timeoutMs: config.llmTimeoutMs,
+      });
     default:
       return createFakeProvider();
   }

@@ -20,7 +20,7 @@ Requisitos: Docker Desktop (o Docker Engine con Compose v2.24+). Puertos libres:
    ```bash
    docker compose up --build
    ```
-   El backend aplica migraciones y datos de ejemplo al arrancar (una sola vez: los seeders quedan registrados).
+   El backend aplica migraciones al arrancar y, como este compose es de demo, también los datos y usuarios de ejemplo (`SEED_DEMO=true` por defecto; una sola vez: los seeders quedan registrados). Fuera de este compose, el contenedor no siembra nada salvo que `SEED_DEMO` valga exactamente `true`.
    Si ya tenías una base creada con datos de ejemplo anteriores (por ejemplo, direcciones del tipo "Dirección de T80-1"), recréala para cargar los nuevos: `docker compose down -v && docker compose up --build`. Borra el volumen de la base.
 3. Abre http://localhost:5173 y entra, por ejemplo, con `ops.la80@cuantico.test` y la clave de `DEMO_OPS_LA80_PASSWORD`.
    API en http://localhost:3001 (`GET /health`).
@@ -30,14 +30,15 @@ luego `npm ci && npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all &
 
 ## Cómo probarlo
 ```bash
-# Backend: 160 tests (dominio sin BD + integración contra PostgreSQL). Requiere la BD de test:
+# Backend: más de 250 tests (dominio sin BD + integración contra PostgreSQL); `npm test` imprime la cifra exacta.
+# Requiere la BD de test:
 # docker compose up -d db crea cuantico_test la primera vez; los tests aplican las migraciones solos.
 cd backend && npm ci && npm test && npm run lint
 
 # Solo el dominio puro, sin base de datos:
 npx jest tests/domain
 
-# Frontend: 14 tests con Vitest + Testing Library, lint y build
+# Frontend: más de 30 tests con Vitest + Testing Library, lint y build
 cd frontend && npm ci && npm test && npm run lint && npm run build
 ```
 Prueba manual con la API (con el stack levantado):
@@ -50,7 +51,7 @@ curl -s "localhost:3001/merchants" -H "Authorization: Bearer $TOKEN"
 curl -s "localhost:3001/search?q=%25" -H "Authorization: Bearer $TOKEN"   # "%" se busca literal
 ```
 Los caminos críticos tienen test: idempotencia (×3 y 10 en paralelo), desorden (720 permutaciones), cálculo nocturno
-(20:00 y 06:00 exactos, otra zona, horario de verano), entrega fallida, inyección SQL, prompt injection y acceso entre comercios.
+(20:00 y 06:00 exactos, otras zonas —México, Santiago, Kolkata—, horario de verano), entrega fallida desde cada etapa, redondeo, inyección SQL, prompt injection y acceso entre comercios.
 
 ## Decisiones de arquitectura y por qué
 - **Node.js 24 + Express 5 + Sequelize + PostgreSQL** (ADR 0002): un solo lenguaje con el frontend; PostgreSQL da una
@@ -82,8 +83,9 @@ Los caminos críticos tienen test: idempotencia (×3 y 10 en paralelo), desorden
 ## Endpoints
 | Método | Ruta | Rol |
 | --- | --- | --- |
+| GET | `/health` | público |
 | POST | `/auth/login` | público (rate limit) |
-| POST | `/events` | ingesta, admin |
+| POST | `/events` | ingesta, admin (rate limit) |
 | GET | `/merchants` | admin, operaciones |
 | GET | `/merchants/:id/totals?from=YYYY-MM-DD&to=YYYY-MM-DD` | admin, operaciones (su comercio) |
 | GET | `/couriers/:id/status-counts` | admin, operaciones (solo cuenta sus comercios) |
@@ -94,6 +96,81 @@ Los caminos críticos tienen test: idempotencia (×3 y 10 en paralelo), desorden
 
 Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Tienda La 80), `ops.farmacia@cuantico.test` (Farmacia Central) e `ingesta@cuantico.test`. Cada uno toma su clave de una variable distinta en tu `.env` (`DEMO_ADMIN_PASSWORD`, `DEMO_OPS_LA80_PASSWORD`, `DEMO_OPS_FARMACIA_PASSWORD`, `DEMO_INGEST_PASSWORD`); no están en el código. Son distintas a propósito: con una clave compartida, un usuario de operaciones podría entrar como admin.
 
+## Ejemplos de la API y formato de errores
+
+**Formato de error común.** Toda respuesta de error trae el mismo cuerpo:
+```json
+{ "error": { "message": "Texto para humanos", "status": 409, "code": "EVENT_CONFLICT", "details": [] } }
+```
+`message` y `status` siempre están; `code` solo en errores con código estable (`UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `FORBIDDEN`, `NOT_FOUND`, `UNKNOWN_MERCHANT`, `EVENT_CONFLICT`, `MERCHANT_MISMATCH`, `AGENT_QUOTA`, `AGENT_UNAVAILABLE`…); `details` solo en validaciones (lista de `{ field, message }`). Un 500 nunca muestra su causa interna (ver `SECURITY.md`).
+
+**`POST /events`** (rol `ingesta` o `admin`). Campos: `eventId` y `deliveryId` (texto de 1 a 128 caracteres: letras, números, `_` y `-`), `merchantId` (entero positivo), `type` (`creada`, `asignada`, `recogida`, `en_ruta`, `entregada` o `fallida`), `occurredAt` (ISO 8601 **con zona**, `Z` o `±hh:mm`), `location { lat, lon }` (obligatoria en `recogida` y `entregada`), y opcionales `courierId` (entero positivo) y `address` (hasta 200 caracteres). Pon en `merchantId` el id de Tienda La 80 que devuelve `GET /merchants` (con la base recién sembrada es `1`).
+
+bash:
+```bash
+TOKEN=$(curl -s localhost:3001/auth/login -H 'Content-Type: application/json'   -d '{"email":"ingesta@cuantico.test","password":"<DEMO_INGEST_PASSWORD>"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+EVENT='{"eventId":"evt-0001","deliveryId":"D-1001","merchantId":1,"type":"creada","occurredAt":"2026-10-20T09:05:00-05:00","address":"Calle 80 # 12-34"}'
+# Primera vez: 201
+curl -s -w '
+HTTP %{http_code}
+' localhost:3001/events -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$EVENT"
+# Mismo evento otra vez: 200 y "duplicate": true, sin efecto
+curl -s -w '
+HTTP %{http_code}
+' localhost:3001/events -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$EVENT"
+# Mismo eventId con contenido distinto: 409 EVENT_CONFLICT
+curl -s -w '
+HTTP %{http_code}
+' localhost:3001/events -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'   -d '{"eventId":"evt-0001","deliveryId":"D-1001","merchantId":1,"type":"asignada","occurredAt":"2026-10-20T09:10:00-05:00","courierId":1}'
+```
+
+PowerShell 7 (`Invoke-RestMethod`; `-SkipHttpErrorCheck` deja leer el cuerpo del 409 en lugar de lanzar una excepción):
+```powershell
+$login = @{ email = 'ingesta@cuantico.test'; password = '<DEMO_INGEST_PASSWORD>' } | ConvertTo-Json
+$token = (Invoke-RestMethod -Method Post -Uri http://localhost:3001/auth/login -ContentType 'application/json' -Body $login).token
+$headers = @{ Authorization = "Bearer $token" }
+$event = @{ eventId = 'evt-0001'; deliveryId = 'D-1001'; merchantId = 1; type = 'creada'
+            occurredAt = '2026-10-20T09:05:00-05:00'; address = 'Calle 80 # 12-34' } | ConvertTo-Json
+# Primera vez: 201. Repetido: 200 con duplicate = true.
+Invoke-RestMethod -Method Post -Uri http://localhost:3001/events -Headers $headers -ContentType 'application/json' -Body $event -StatusCodeVariable status
+$status
+# Mismo eventId con contenido distinto: 409
+$otro = @{ eventId = 'evt-0001'; deliveryId = 'D-1001'; merchantId = 1; type = 'asignada'
+           occurredAt = '2026-10-20T09:10:00-05:00'; courierId = 1 } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:3001/events -Headers $headers -ContentType 'application/json' -Body $otro -SkipHttpErrorCheck -StatusCodeVariable status
+$status
+```
+
+Respuestas de `POST /events`:
+- **201** (evento nuevo): `{ "eventId": "evt-0001", "deliveryId": "D-1001", "duplicate": false, "delivery": { "status": "creada", "costStatus": "incomplete", "costAmount": null, "currency": "COP" } }`. Un solo evento no alcanza para costear, por eso `costAmount` es `null` y no 0.
+- **200** (mismo `eventId`, mismo contenido): igual al anterior pero con `"duplicate": true`; no cambia nada.
+- **409**: `EVENT_CONFLICT` (mismo `eventId`, contenido distinto) o `MERCHANT_MISMATCH` (la entrega ya existe en otro comercio); en ambos casos queda una anomalía visible en `GET /anomalies`.
+- **422**: validación (por ejemplo `occurredAt` sin zona), con `details`; o `UNKNOWN_MERCHANT` / `UNKNOWN_COURIER` si el comercio o el mensajero no existen. **401** sin token o con token inválido; **403** con un rol que no puede ingerir; **429** al pasar el límite por minuto (`INGEST_RPM`).
+
+**`POST /agent/chat`** (admin y operaciones). Cuerpo: `{ "message": "...", "history": [{ "role": "user", "content": "..." }] }` (`history` es opcional). Respuesta 200: `reply`, `verified`, `toolCalls`, `steps`, `stopReason` y `provider`. Códigos:
+
+| Código | Cuándo |
+| --- | --- |
+| 200 | Respuesta del agente (con `verified: false` si alguna cifra no se pudo comprobar). |
+| 401 | Sin token o token inválido. |
+| 403 | Rol sin acceso (la cuenta de `ingesta` no puede usar el agente). |
+| 422 | `message` vacío o de más de 1000 caracteres, o `history` inválido. |
+| 429 | Dos orígenes distintos. Sin `code`: superaste tu límite por minuto (`AGENT_RPM`). Con `code: AGENT_QUOTA`: el proveedor de IA agotó su cuota (en el nivel gratuito de Gemini es muy baja); reintentar de inmediato no sirve. |
+| 502 | `AGENT_UNAVAILABLE`: el proveedor falló, no respondió a tiempo (`LLM_TIMEOUT_MS`) o rechazó la llave. El mensaje es fijo y no incluye detalles del proveedor. |
+
+## Límites y configuración por entorno
+Todo es opcional y se define por variable de entorno (ver `backend/.env.example`); un valor inválido (no entero, cero o negativo) hace fallar el arranque con un mensaje claro.
+
+| Variable | Por defecto | Qué controla |
+| --- | --- | --- |
+| `INGEST_RPM` | 600 | Peticiones por minuto a `POST /events`, por cuenta autenticada (IP de respaldo). Súbela para un emisor de alto volumen (ADR 0001). |
+| `AGENT_RPM` | 20 | Peticiones por minuto a `POST /agent/chat`, por usuario (IP de respaldo). |
+| `TRUST_PROXY` | sin definir | Saltos de proxy confiables (`app.set('trust proxy', n)`). Sin definir no se confía en `X-Forwarded-For`; detrás de un balanceador pon el número exacto de proxies. |
+| `DB_POOL_MAX` | 10 | Conexiones máximas del pool de PostgreSQL (espera máxima por una conexión: 10 s). |
+| `DB_STATEMENT_TIMEOUT_MS` / `DB_LOCK_TIMEOUT_MS` / `DB_IDLE_IN_TX_TIMEOUT_MS` | 15000 / 5000 / 15000 | Timeouts de sesión de PostgreSQL de la API. No se aplican a las migraciones de `sequelize-cli`. |
+| `LLM_TIMEOUT_MS` | 30000 | Espera máxima por llamada al proveedor de IA. Un timeout se responde como 502 con mensaje claro. |
+| `SEED_DEMO` | sin definir (el `docker-compose.yml` de demo la pone en `true`) | El contenedor siembra datos y usuarios de demo solo si vale exactamente `true`; con cualquier otro valor, o sin definir, solo aplica migraciones. |
+
 ## Agente conversacional
 - El LLM orquesta y redacta; las tools calculan y autorizan. Tools de solo lectura: `list_merchants`, `resolve_period`, `get_merchant_totals`, `get_courier_status_counts`, `search_deliveries`, `explain_cost` y `get_merchant_notes`.
 - El alcance sale de la sesión (JWT → usuario en BD), nunca del modelo: el modelo puede pedir cualquier `merchant_id`, pero el servidor decide qué devuelve.
@@ -101,10 +178,13 @@ Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Ti
 - **Verificación de cifras:** cada fecha y cada número de la respuesta debe salir de un campo de datos de las tools (montos, conteos, fechas completas). No cuentan los ids, el texto de terceros (notas y direcciones) ni los números que escribió el usuario. Las fechas de entrega se verifican: `explain_cost` devuelve el instante UTC y la fecha local del comercio, calculada por el servidor. Si algo no cuadra, se descarta el texto del modelo y se devuelve un aviso con `verified: false`; los datos viajan en `toolCalls` y el frontend arma un resumen legible, sin JSON crudo. Límites conocidos: no detecta cifras escritas en palabras ("seis mil") ni ata cada monto a su comercio.
 - El modelo no envía fechas: los periodos van como expresión (`semana_pasada`, `rango` con fechas inclusivas…) y el servidor los resuelve. Las salidas incluyen `last_day` para no tener que restar un día.
 - Todo texto de terceros que devuelven las tools (notas, nombres, direcciones) se normaliza (NFKC), se le quitan caracteres de control y `<`/`>` y se trunca; las notas además van delimitadas.
+- `list_merchants` no lo pide el modelo: el servidor lo ejecuta antes del primer paso con el usuario de la sesión y se lo entrega como un intercambio de tool ya resuelto. Ahorra una llamada al modelo por pregunta (una pregunta típica con Gemini pasa de 3 llamadas a 2) y no cambia el alcance. No cuenta contra los 5 pasos, y aparece en `toolCalls` aunque el frontend no lo muestra en el panel.
 - Máximo 5 tools por paso; en el último paso no se ejecutan tools.
+- **Modo simulado:** con `LLM_PROVIDER=fake` (el valor por defecto) no hay ningún LLM: el "modelo" es un conjunto de reglas que reconoce el tipo de pregunta por palabras clave (totales, notas, mensajero, costo de una entrega, búsqueda) y redacta con plantillas. Las preguntas fuera de esas formas reciben un mensaje de ayuda; es lo que hace un modelo por reglas, no un defecto de la integración. Para que nadie lo confunda con un modelo real, el frontend muestra la insignia "Modo simulado" en cada respuesta y un aviso bajo la cabecera cuando el proveedor es `fake`. Con `gemini` o `anthropic` no aparece. La respuesta de la API lleva `provider` para esto.
 - `toolCalls` se devuelve completo al cliente a propósito: es el panel de "datos consultados" y solo contiene datos del alcance del usuario.
 - La respuesta incluye `toolCalls` (nombre, entrada, salida o error): son los "datos consultados".
-- Proveedores: `LLM_PROVIDER=fake` (por defecto) es un modelo simulado por reglas, determinista y sin llave; sirve para tests y para la demo. `LLM_PROVIDER=anthropic` usa el SDK oficial con `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` (por defecto `claude-opus-5-5`, esfuerzo `low`, tools con `strict` y respaldo automático si el modelo declina). `LLM_PROVIDER=gemini` usa el SDK oficial `@google/genai` con function calling (`GEMINI_API_KEY`; `GEMINI_MODEL`, por defecto `gemini-2.5-flash`). Traduce el formato interno del agente a `functionCall`/`functionResponse` y reenvía los turnos del modelo tal cual llegan, con su firma de pensamiento. Un bloqueo de seguridad de Gemini se trata como `refusal` y los errores de la API como 502. Las tools, los límites, el alcance y la verificación de cifras son los mismos para los tres proveedores. Ninguno de los proveedores reales se probó contra su API en este repositorio; Gemini se probó con un SDK simulado.
+- Proveedores: `LLM_PROVIDER=fake` (por defecto) es un modelo simulado por reglas, determinista y sin llave; sirve para tests y para la demo. `LLM_PROVIDER=anthropic` usa el SDK oficial con `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` (por defecto `claude-opus-5-5`, esfuerzo `low`, tools con `strict` y respaldo automático si el modelo declina). `LLM_PROVIDER=gemini` usa el SDK oficial `@google/genai` con function calling (`GEMINI_API_KEY`; `GEMINI_MODEL`, por defecto `gemini-2.5-flash`). Traduce el formato interno del agente a `functionCall`/`functionResponse` y reenvía los turnos del modelo tal cual llegan, con su firma de pensamiento. Un bloqueo de seguridad de Gemini se trata como `refusal` y los errores de la API como 502. Las tools, los límites, el alcance y la verificación de cifras son los mismos para los tres proveedores. Un error de la API del proveedor, o una llamada que pasa de `LLM_TIMEOUT_MS`, responde 502 (`AGENT_UNAVAILABLE`); una cuota agotada responde 429 (`AGENT_QUOTA`).
+- **Qué se probó contra proveedores reales:** Gemini real (`gemini-2.5-flash`, nivel gratuito) se probó a mano, una vez, contra el stack de Docker: una pregunta de facturación se respondió bien y con las cifras verificadas; después el proveedor devolvió 429 por cuota (el nivel gratuito permite 5 solicitudes por minuto y 20 por día). Esa prueba no es automática ni se repite en CI. Los tests automáticos usan un SDK simulado. **Anthropic no se probó contra la API real**: solo con el SDK simulado y modelos guionizados.
 - **Datos que salen a un tercero:** con `anthropic` o `gemini`, las salidas de las tools (cifras, nombres, direcciones, notas) viajan al proveedor. Usa llaves de un proyecto con facturación y condiciones de uso de datos aceptadas por la empresa: en el nivel gratuito de la API de Gemini, Google puede usar los datos para mejorar sus modelos. El modelo por defecto de Gemini es una versión fija (`gemini-2.5-flash`), no un alias móvil; se cambia con `GEMINI_MODEL`.
 - Periodos relativos: las semanas empiezan el lunes; "la semana pasada" es de lunes a domingo, en la zona del comercio.
 
@@ -146,7 +226,7 @@ Limitaciones conocidas (decisión explícita: se documentan, no se cambian en es
   hay un comando para recalcular histórico con una versión nueva.
 - **Memoria de conversación en el servidor**: el cliente envía sus preguntas anteriores (solo texto del usuario).
 - **Pulido visual, internacionalización y modo oscuro en la UI**: el enunciado pide una vista mínima funcional.
-- **Prueba del proveedor Anthropic contra la API real**: el agente se probó con el modelo simulado y con modelos guionizados.
+- **Prueba del proveedor Anthropic contra la API real**: no se hizo; el agente se probó con el modelo simulado y con modelos guionizados. El riesgo es que el modelo real elija las tools de otra forma que el simulado; no cambia el alcance ni la verificación de cifras, que son del servidor. Gemini sí se probó a mano contra la API real (ver Agente conversacional).
 - **Despliegue real**: hay una propuesta en `docs/informes/despliegue.md` y una estimación de costos por escenario en [`docs/informes/costos-despliegue.md`](docs/informes/costos-despliegue.md).
 
 ## Qué haría con una semana en lugar de unas horas

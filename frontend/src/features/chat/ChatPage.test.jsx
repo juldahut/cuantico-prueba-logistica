@@ -87,8 +87,8 @@ describe('ChatPage', () => {
 
     expect(await screen.findByText(/facturó 6\.334 COP/)).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    expect(screen.getByText('Datos consultados (1)')).toBeInTheDocument();
-    expect(screen.getAllByText('Facturación del periodo').length).toBeGreaterThan(0);
+    expect(screen.getByRole('region', { name: 'Datos consultados' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Ver detalle' })).toBeInTheDocument();
     expect(screen.queryByText('get_merchant_totals')).not.toBeInTheDocument();
   });
 
@@ -177,5 +177,51 @@ describe('ChatPage', () => {
       { role: 'user', content: 'primera' },
     ]);
     expect(screen.getAllByText('segunda')).toHaveLength(1);
+  });
+
+  it('no ofrece Reintentar cuando el error es 429', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        jsonResponse(429, { error: { message: 'Demasiadas consultas. Espera un momento.' } }),
+      ),
+    );
+    renderChat();
+
+    await userEvent.type(screen.getByLabelText('Mensaje'), 'x{Enter}');
+
+    expect(await screen.findByText('Demasiadas consultas. Espera un momento.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+  });
+
+  it('con proveedor fake muestra la insignia y el aviso bajo la cabecera', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        jsonResponse(200, { reply: 'Listo.', verified: true, provider: 'fake', toolCalls: [] }),
+      ),
+    );
+    renderChat();
+    expect(screen.queryByText(/Modo simulado/)).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Mensaje'), 'x{Enter}');
+
+    expect(await screen.findByText(/las respuestas las arman reglas/)).toBeInTheDocument();
+    expect(screen.getByText('Modo simulado')).toBeInTheDocument();
+  });
+
+  it('con un proveedor real no muestra nada de modo simulado', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        jsonResponse(200, { reply: 'Listo.', verified: true, provider: 'gemini', toolCalls: [] }),
+      ),
+    );
+    renderChat();
+
+    await userEvent.type(screen.getByLabelText('Mensaje'), 'x{Enter}');
+
+    await screen.findByText('Listo.');
+    expect(screen.queryByText(/Modo simulado/)).not.toBeInTheDocument();
   });
 });

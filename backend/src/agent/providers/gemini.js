@@ -43,6 +43,13 @@ function toContents(messages) {
       // que Gemini exige para continuar despues de un functionCall).
       const raw = m.content.find((b) => b._gemini)?._gemini;
       if (raw) return raw;
+      // Turno sin _gemini: lo construye el servidor (el list_merchants preinyectado de
+      // runAgent), no el modelo. Su functionCall va SIN thoughtSignature: en los
+      // tipos del SDK (Part.thoughtSignature) es opcional y gemini-2.5-flash no
+      // la exige para continuar. Salvedad: no se probo contra la API real, y los
+      // modelos que si validan la firma en cada functionCall (familia Gemini 3)
+      // rechazarian este turno; si se cambia GEMINI_MODEL a uno de ellos hay que
+      // revisarlo.
       return {
         role: 'model',
         parts: m.content.map((b) =>
@@ -118,20 +125,30 @@ function fromResponse(raw) {
   };
 }
 
+// Errores del proveedor: respuestas de error de la API (ApiError) y el
+// vencimiento del timeout. Con httpOptions.timeout el SDK aborta el fetch y lo
+// que sale es un AbortError (DOMException), no un ApiError: sin esto, un
+// Gemini lento terminaria en 500 en vez de 502.
+function isProviderError(err) {
+  return err instanceof ApiError || err?.name === 'AbortError' || err?.name === 'TimeoutError';
+}
+
 // Proveedor Gemini (SDK oficial @google/genai, function calling). La llave sale
 // de GEMINI_API_KEY, nunca del codigo. `client` permite inyectar un SDK
-// simulado en los tests.
-function createGeminiProvider({ apiKey, model, client }) {
+// simulado en los tests. `timeoutMs` (LLM_TIMEOUT_MS) acota cada llamada.
+function createGeminiProvider({ apiKey, model, client, timeoutMs }) {
   if (!apiKey) {
     throw new Error('LLM_PROVIDER=gemini requiere GEMINI_API_KEY.');
   }
-  const ai = client || new GoogleGenAI({ apiKey });
+  const ai =
+    client ||
+    new GoogleGenAI({ apiKey, ...(timeoutMs ? { httpOptions: { timeout: timeoutMs } } : {}) });
   const modelId = model || DEFAULT_MODEL;
 
   return {
     name: 'gemini',
     model: modelId,
-    isProviderError: (err) => err instanceof ApiError,
+    isProviderError,
     async createMessage({ system, messages, tools }) {
       const raw = await ai.models.generateContent({
         model: modelId,

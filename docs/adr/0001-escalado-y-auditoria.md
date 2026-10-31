@@ -29,8 +29,11 @@ Opción B.
 - Cada cálculo es una fila nueva, nunca se sobrescribe. Guarda los eventos usados, la tarifa y la versión de reglas, el
   desglose, el hash de entradas y la marca de tiempo. **Ya implementado:** `cost_calculations` es append-only por trigger
   y se consulta en `GET /deliveries/:id/cost-audit`.
-- Un cambio de reglas genera un recálculo con versión nueva. Ambos resultados quedan consultables, y un auditor reproduce
-  el mismo número con la función pura y las mismas entradas (el hash lo comprueba).
+- **Recálculo.** Hoy existe al ingerir eventos: cada evento recalcula la entrega desde todos sus eventos y agrega un
+  cálculo nuevo si cambian las entradas. Recalcular el histórico tras un cambio de reglas o de tarifa **no existe todavía**:
+  las reglas están versionadas y cada cálculo guarda su versión, pero falta un comando de recálculo masivo (mejora en
+  `docs/mejoras.md`). Con él, ambos resultados quedarían consultables, y un auditor reproduce el mismo número con la
+  función pura y las mismas entradas (el hash lo comprueba).
 
 ## Trade-offs que se asumen
 - Consistencia eventual: un costo puede tardar segundos en reflejarse (el SLO lo define negocio).

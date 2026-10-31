@@ -1,7 +1,6 @@
 import Badge from '../../components/ui/Badge.jsx';
-import { buildSummary, extractNotes, stripMarkers } from '../../lib/summary.js';
+import { extractNotes, stripMarkers } from '../../lib/summary.js';
 import NoteQuote from './NoteQuote.jsx';
-import Summary from './Summary.jsx';
 import ToolCallsPanel from './ToolCallsPanel.jsx';
 
 // Cortes del agente (limite de pasos, de uso, rechazo): no hubo nada que verificar.
@@ -11,12 +10,8 @@ export default function ChatMessage({ message }) {
   const isUser = message.role === 'user';
   const notes = isUser ? null : extractNotes(message.toolCalls);
   const unverified = !isUser && message.verified === false;
+  const simulated = !isUser && message.provider === 'fake';
   const verified = !isUser && message.verified === true && !ABNORMAL_STOPS.has(message.stopReason);
-  // Sin confirmar las cifras del texto se muestran los datos directamente; una
-  // busqueda siempre muestra su lista, que es la respuesta.
-  const shown = isUser
-    ? []
-    : buildSummary(message.toolCalls).filter((b) => unverified || b.kind === 'search_deliveries');
 
   return (
     <li className={`anim-subir flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
@@ -33,7 +28,7 @@ export default function ChatMessage({ message }) {
       >
         {/* Texto plano: React escapa el contenido, nunca se interpreta como HTML. */}
         <p className="whitespace-pre-wrap break-words">{stripMarkers(message.text)}</p>
-        {(verified || unverified) && (
+        {(verified || unverified || simulated) && (
           <div className="mt-3 flex flex-wrap gap-2">
             {verified && (
               <Badge
@@ -51,11 +46,18 @@ export default function ChatMessage({ message }) {
                 Cifras sin verificar
               </Badge>
             )}
+            {simulated && (
+              <Badge
+                tone="neutral"
+                title="Respuesta generada por reglas, no por un modelo de IA. Configura LLM_PROVIDER para usar un modelo real."
+              >
+                Modo simulado
+              </Badge>
+            )}
           </div>
         )}
         {notes && <NoteQuote {...notes} />}
-        <Summary blocks={shown} />
-        {!isUser && <ToolCallsPanel toolCalls={message.toolCalls} />}
+        {!isUser && <ToolCallsPanel toolCalls={message.toolCalls} unverified={unverified} />}
       </article>
     </li>
   );
