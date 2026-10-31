@@ -18,6 +18,7 @@ function createAnthropicProvider({ apiKey, model }) {
   return {
     name: 'anthropic',
     model: modelId,
+    isProviderError: (err) => err instanceof Anthropic.APIError,
     async createMessage({ system, messages, tools }) {
       return client.beta.messages.create({
         model: modelId,

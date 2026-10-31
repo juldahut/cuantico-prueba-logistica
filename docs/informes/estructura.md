@@ -20,7 +20,7 @@ navegador ──► frontend (React, nginx :5173) ──► API Express (:3001) 
 | `services/queries.service.js` | Totales por comercio, conteo por mensajero, auditoría de costo. |
 | `services/search.service.js` | Búsqueda con LIKE escapado, límites y alcance. |
 | `services/auth.service.js`, `scope.js` | Login JWT, carga del usuario y su alcance; filtros por comercio. |
-| `agent/` | `agent.service` (bucle, límites, verificación de cifras), `tools` (7 tools de solo lectura), `providers/` (fake, anthropic). |
+| `agent/` | `agent.service` (bucle, límites, verificación de cifras), `tools` (7 tools de solo lectura), `providers/` (fake, gemini, anthropic). |
 | `middlewares/` | Autenticación, roles, validación, rate limit, manejo de errores (500 sin detalles internos). |
 | `migrations/`, `seeders/` | Esquema y datos de ejemplo (3 comercios en zonas distintas, 4 usuarios). |
 
