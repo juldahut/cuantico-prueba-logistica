@@ -10,7 +10,7 @@ suelen costar entre 10 % y 30 % más. Antes de comprometer presupuesto se valida
 | B. Producción inicial con alta disponibilidad | 5 a 50 comercios, volumen moderado | ≈ 300 a 400 |
 | C. Escala del ADR 0001 | 10.000 eventos/s en pico | No se estima aquí: ver "Escenario C" |
 
-El LLM se cobra aparte (por tokens) y no depende de AWS. Con el nivel gratuito de Gemini la demo cuesta cero; en producción
+El LLM se cobra aparte (por tokens) y no depende de AWS. Con el nivel gratuito de Gemini la demo cuesta cero, con una salvedad: en ese nivel Google puede usar los datos para mejorar sus modelos, así que solo se usa con datos ficticios; en producción
 el gasto se acota con los límites ya implementados (5 pasos por consulta, tokens máximos y rate limit del agente).
 
 ## Precios unitarios usados
@@ -60,7 +60,7 @@ hacer una prueba de carga y recién entonces dimensionar; los cambios de arquite
 | Disponibilidad | Una zona caída detiene la ingesta | Multi-AZ en base y 2 réplicas de API; reintentos del emisor ya soportados por idempotencia |
 | Seguridad | Fuga entre comercios, secretos, prompt injection | Alcance en el servidor, WAF, mínimo privilegio en IAM, escaneo de secretos en CI |
 | Datos personales | Nombres, direcciones y teléfonos de clientes y mensajeros | Cumplimiento de la Ley 1581 de 2012: finalidad, consentimiento, retención y control de transferencias a terceros (incluido el proveedor de LLM) |
-| Costo del LLM | Crece con el uso | Límites por consulta, caché de respuestas frecuentes, modelo liviano por defecto, tablero de gasto |
+| Costo del LLM | Crece con el uso | Límites por consulta, caché de respuestas frecuentes, modelo configurable por variable de entorno (`ANTHROPIC_MODEL`, `GEMINI_MODEL`); en producción elegir uno liviano, tablero de gasto |
 | Dependencia de proveedor | Cambio de precio o cuota del LLM | Proveedor intercambiable ya implementado (fake, anthropic, gemini) |
 | Equipo | Persona única es punto de falla | Runbook, ADR y bitácora ya documentados; guardia rotativa cuando haya equipo |
 
