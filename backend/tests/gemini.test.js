@@ -236,3 +236,49 @@ describe('proveedor gemini en el bucle del agente', () => {
     expect(result.verified).toBe(false);
   });
 });
+
+describe('proveedor gemini: ids repetidos entre turnos', () => {
+  it('cada functionResponse lleva el nombre de su propia llamada aunque Gemini repita el id', async () => {
+    const client = fakeClient([modelTurn([{ text: 'fin' }])]);
+    const provider = createGeminiProvider({ apiKey: 'k', client });
+    const messages = [
+      { role: 'user', content: 'x' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'a', name: 'list_merchants', input: {}, _geminiCallId: 'fc-1' },
+        ],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'a', content: '{"merchants":[]}' }],
+      },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'b',
+            name: 'search_deliveries',
+            input: { q: 'x' },
+            _geminiCallId: 'fc-1',
+          },
+        ],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'b', content: '{"count":0,"results":[]}' }],
+      },
+    ];
+
+    await provider.createMessage({ system: SYSTEM_PROMPT, messages, tools: TOOL_DEFINITIONS });
+
+    const responses = client.requests[0].contents
+      .filter((c) => c.parts[0].functionResponse)
+      .map((c) => c.parts[0].functionResponse);
+    expect(responses.map((r) => [r.id, r.name])).toEqual([
+      ['fc-1', 'list_merchants'],
+      ['fc-1', 'search_deliveries'],
+    ]);
+  });
+});

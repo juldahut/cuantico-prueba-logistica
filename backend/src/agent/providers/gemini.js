@@ -57,8 +57,11 @@ function toContents(messages) {
       role: 'user',
       parts: m.content.map((b) => {
         if (b.type !== 'tool_result') return { text: b.text };
-        const call = calls.get(b.tool_use_id) || {};
-        const data = JSON.parse(b.content);
+        const call = calls.get(b.tool_use_id);
+        // Cada resultado debe corresponder a una llamada conocida: nunca se
+        // responde con el nombre de otra tool.
+        if (!call) throw new Error('tool_result sin functionCall correspondiente');
+        const data = JSON.parse(b.content ?? 'null');
         return {
           functionResponse: {
             ...(call.callId ? { id: call.callId } : {}),
@@ -81,7 +84,9 @@ function fromResponse(raw) {
     if (part.functionCall) {
       blocks.push({
         type: 'tool_use',
-        id: part.functionCall.id || newCallId(),
+        // Id interno siempre propio: si Gemini repite un id en otro turno, no
+        // choca. El id de Gemini se guarda aparte para la functionResponse.
+        id: newCallId(),
         name: part.functionCall.name,
         input: part.functionCall.args || {},
         _geminiCallId: part.functionCall.id,
