@@ -36,6 +36,9 @@ Los secretos van en el gestor de secretos de la plataforma, nunca en el reposito
 - `cost_calculations` es append-only: un rollback no borra cálculos; los recálculos quedan como filas nuevas.
 
 ## Propuesta en la nube (sin despliegue real)
+Costos estimados por escenario (demo, producción inicial y escala del ADR 0001), arquitectura en AWS y hoja de ruta: ver
+[costos-despliegue.md](costos-despliegue.md).
+
 - **Backend:** contenedor en un servicio administrado (AWS ECS Fargate o Google Cloud Run), con dos o más réplicas detrás
   de un balanceador con TLS. Configurar `trust proxy` para que el rate limit vea la IP real.
 - **Base de datos:** PostgreSQL administrado (RDS o Cloud SQL) con copias automáticas y acceso solo desde la red privada.

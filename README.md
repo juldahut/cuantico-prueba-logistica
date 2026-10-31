@@ -146,7 +146,7 @@ Limitaciones conocidas (decisión explícita: se documentan, no se cambian en es
 - **Memoria de conversación en el servidor**: el cliente envía sus preguntas anteriores (solo texto del usuario).
 - **Pulido visual, internacionalización y modo oscuro en la UI**: el enunciado pide una vista mínima funcional.
 - **Prueba del proveedor Anthropic contra la API real**: el agente se probó con el modelo simulado y con modelos guionizados.
-- **Despliegue real**: hay una propuesta en `docs/informes/despliegue.md`.
+- **Despliegue real**: hay una propuesta en `docs/informes/despliegue.md` y una estimación de costos por escenario en [`docs/informes/costos-despliegue.md`](docs/informes/costos-despliegue.md).
 
 ## Qué haría con una semana en lugar de unas horas
 1. Implementar la opción B del ADR 0001: ingesta que responde 202 tras escribir en un log particionado por `delivery_id`,
