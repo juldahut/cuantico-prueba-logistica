@@ -1,6 +1,9 @@
 'use strict';
 
 /* global jest */
+
+// Sin llamadas reales ni de pago: el proveedor de estas pruebas es el simulado.
+process.env.LLM_PROVIDER = 'fake';
 const request = require('supertest');
 const app = require('../src/app');
 const { runAgent, SYSTEM_PROMPT, MAX_STEPS, verifyNumbers } = require('../src/agent/agent.service');
@@ -952,5 +955,39 @@ describe('list_merchants preinyectado por el servidor', () => {
 
   it('el system prompt dice que la lista de comercios ya viene resuelta', () => {
     expect(SYSTEM_PROMPT).toMatch(/ya consultó al inicio/);
+  });
+});
+
+describe('plazo total por pregunta (AGENT_DEADLINE_MS)', () => {
+  it('si se acaba el plazo no se hacen mas llamadas al modelo y se avisa', async () => {
+    const provider = createFakeProvider();
+    const spy = jest.spyOn(provider, 'createMessage');
+    const result = await runAgent({
+      user: await principal(opsLa80),
+      message: '¿Cuánto facturó Tienda La 80 la semana pasada?',
+      provider,
+      now: NOW,
+      deadlineMs: -1,
+    });
+    expect(result.stopReason).toBe('deadline');
+    expect(result.reply).toMatch(/tardó demasiado/);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe('preinyeccion de list_merchants configurable por proveedor', () => {
+  it('con preloadMerchants=false el servidor no la preinyecta y el modelo la pide', async () => {
+    const provider = createFakeProvider();
+    provider.preloadMerchants = false;
+    const result = await runAgent({
+      user: await principal(opsLa80),
+      message: '¿Qué notas tiene Tienda La 80?',
+      provider,
+      now: NOW,
+    });
+    expect(result.toolCalls.map((c) => c.name)).toEqual(['list_merchants', 'get_merchant_notes']);
+    // La pidio el modelo: hubo una llamada mas al modelo que con la preinyeccion.
+    expect(result.steps).toBe(3);
   });
 });

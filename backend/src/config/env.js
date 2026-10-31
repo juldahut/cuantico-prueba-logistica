@@ -45,8 +45,13 @@ module.exports = {
   // Limites de peticiones por minuto. Ingesta: por cuenta autenticada (IP de
   // respaldo); el default de 600 es conservador para una cuenta de demo, y un
   // emisor real a escala del ADR 0001 sube INGEST_RPM. Agente: por usuario.
-  ingestRpm: intFromEnv('INGEST_RPM', { defaultValue: 600 }),
-  agentRpm: intFromEnv('AGENT_RPM', { defaultValue: 20 }),
+  // Topes altos pero finitos: un valor absurdo anularia el control en silencio.
+  ingestRpm: intFromEnv('INGEST_RPM', { defaultValue: 600, max: 100000 }),
+  agentRpm: intFromEnv('AGENT_RPM', { defaultValue: 20, max: 600 }),
+  // Consultas de lectura (busqueda, totales, auditoria): por cuenta.
+  readRpm: intFromEnv('READ_RPM', { defaultValue: 120, max: 10000 }),
+  // Plazo total de una pregunta al agente, en ms (suma de todas sus llamadas).
+  agentDeadlineMs: intFromEnv('AGENT_DEADLINE_MS', { defaultValue: 60000, max: 600000 }),
   // Saltos de proxy confiables (balanceador, nginx). null = sin configurar: no
   // se confia en X-Forwarded-For y el limitador ve la IP del ultimo salto.
   trustProxy: intFromEnv('TRUST_PROXY', { defaultValue: null, min: 0, max: 32 }),

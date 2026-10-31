@@ -4,7 +4,7 @@ import NoteQuote from './NoteQuote.jsx';
 import ToolCallsPanel from './ToolCallsPanel.jsx';
 
 // Cortes del agente (limite de pasos, de uso, rechazo): no hubo nada que verificar.
-const ABNORMAL_STOPS = new Set(['max_steps', 'token_limit', 'refusal']);
+const ABNORMAL_STOPS = new Set(['max_steps', 'token_limit', 'deadline', 'refusal']);
 
 export default function ChatMessage({ message }) {
   const isUser = message.role === 'user';
@@ -47,10 +47,7 @@ export default function ChatMessage({ message }) {
               </Badge>
             )}
             {simulated && (
-              <Badge
-                tone="neutral"
-                title="Respuesta generada por reglas, no por un modelo de IA. Configura LLM_PROVIDER para usar un modelo real."
-              >
+              <Badge tone="neutral" title="Respuesta generada por reglas, no por un modelo de IA">
                 Modo simulado
               </Badge>
             )}

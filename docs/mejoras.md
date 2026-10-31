@@ -20,3 +20,6 @@ Prioridad aproximada. Se completa durante el desarrollo; las últimas filas son 
 | Media | Credencial o firma por emisor en la ingesta, con lista de comercios permitidos | Una sola cuenta de ingesta puede enviar eventos de cualquier comercio; un emisor comprometido pesa más de lo debido | Medio |
 | Baja | Validar `time_zone` al crear o actualizar un comercio | Hoy no hay CHECK ni validación en el modelo; una zona inválida solo se descubre al calcular | Bajo |
 | Baja | Rechazar en el verificador de cifras los números con separadores de miles mezclados | Un formato ambiguo podría leerse como una cifra distinta de la que está en los datos | Bajo |
+- Tope de concurrencia por usuario del agente y cancelación (`AbortSignal`) cuando el cliente se desconecta: hoy hay cuota por minuto y plazo total por pregunta, pero no un máximo de peticiones simultáneas.
+- Probar el intercambio sintético de `list_merchants` contra los modelos Gemini 3 (exigen `thoughtSignature`); mientras tanto el servidor solo lo preinyecta con modelos 2.5.
+- Generar la CSP del nginx desde una plantilla (`envsubst`) para no editar la URL de la API en dos sitios.

@@ -3,6 +3,8 @@
 // Limites bajos y limitadores encendidos ANTES de cargar la app (se leen al
 // cargar los modulos). En tests estan apagados salvo con RATE_LIMIT_IN_TEST.
 process.env.RATE_LIMIT_IN_TEST = 'true';
+process.env.LLM_PROVIDER = 'fake';
+process.env.READ_RPM = '3';
 process.env.AGENT_RPM = '2';
 process.env.INGEST_RPM = '3';
 
@@ -13,6 +15,7 @@ const { sequelize, resetDb, createMerchant, createUser } = require('./helpers');
 
 let opsA;
 let opsB;
+let opsC;
 let ingestA;
 let ingestB;
 
@@ -27,6 +30,7 @@ beforeAll(async () => {
   const { merchant } = await createMerchant();
   opsA = await createUser({ role: 'operaciones', merchantIds: [merchant.id] });
   opsB = await createUser({ role: 'operaciones', merchantIds: [merchant.id] });
+  opsC = await createUser({ role: 'operaciones', merchantIds: [merchant.id] });
   ingestA = await createUser({ role: 'ingesta' });
   ingestB = await createUser({ role: 'ingesta' });
 });
@@ -57,6 +61,34 @@ describe('limitador de ingesta: cupo por cuenta (INGEST_RPM)', () => {
     expect((await ingest(ingestA)).status).toBe(429);
 
     expect((await ingest(ingestB)).status).toBe(422);
+  });
+});
+
+describe('limitador de lectura: cupo por cuenta (READ_RPM)', () => {
+  const read = (user, extra = {}) =>
+    request(app)
+      .get('/merchants')
+      .set({ ...user.auth, ...extra });
+
+  it('corta las lecturas de la cuenta que se pasa, sin tocar a otra', async () => {
+    for (let i = 0; i < 3; i += 1) expect((await read(opsA)).status).toBe(200);
+    expect((await read(opsA)).status).toBe(429);
+    expect((await read(opsB)).status).toBe(200);
+  });
+
+  it('no se evade cambiando de IP declarada: la clave es la cuenta', async () => {
+    const { body } = await request(app).get('/merchants').set(opsB.auth);
+    expect(body).toBeDefined();
+    // opsB ya uso 2 de 3; con otra IP declarada sigue siendo la misma cuenta.
+    expect((await read(opsB, { 'X-Forwarded-For': '203.0.113.9' })).status).toBe(200);
+    expect((await read(opsB, { 'X-Forwarded-For': '203.0.113.10' })).status).toBe(429);
+  });
+
+  it('el cupo de lectura no se comparte con el del agente', async () => {
+    for (let i = 0; i < 3; i += 1) expect((await read(opsC)).status).toBe(200);
+    expect((await read(opsC)).status).toBe(429);
+    // La lectura esta agotada; el agente (cupo propio, aun sin usar) responde.
+    expect((await chat(opsC)).status).toBe(200);
   });
 });
 

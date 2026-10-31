@@ -1,5 +1,8 @@
 'use strict';
 
+// Sin llamadas reales ni de pago: el proveedor de estos tests es el simulado.
+process.env.LLM_PROVIDER = 'fake';
+
 /* global jest, DOMException */
 
 // El timeout del cliente del LLM (LLM_TIMEOUT_MS) con los SDK reales contra un

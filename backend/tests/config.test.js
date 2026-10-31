@@ -9,6 +9,8 @@ const ORIGINAL_ENV = { ...process.env };
 const NEW_VARS = [
   'INGEST_RPM',
   'AGENT_RPM',
+  'READ_RPM',
+  'AGENT_DEADLINE_MS',
   'TRUST_PROXY',
   'LLM_TIMEOUT_MS',
   'DB_POOL_MAX',
@@ -18,9 +20,10 @@ const NEW_VARS = [
 ];
 
 // Carga el modulo desde cero con las variables dadas. Las demas variables
-// nuevas quedan sin definir para que el .env local no altere el resultado.
+// nuevas quedan VACIAS (equivale a "sin valor": se usa el default): dotenv no
+// pisa una variable ya definida, asi que un .env local no altera el resultado.
 function loadFresh(modulePath, vars = {}) {
-  for (const name of NEW_VARS) delete process.env[name];
+  for (const name of NEW_VARS) process.env[name] = '';
   process.env.JWT_SECRET = process.env.JWT_SECRET || 'x'.repeat(40);
   Object.assign(process.env, vars);
   let loaded;

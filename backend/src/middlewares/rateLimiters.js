@@ -47,6 +47,15 @@ const agentLimiter = buildLimiter({
   keyGenerator: accountKey,
 });
 
+// Rutas de lectura (busqueda ILIKE, totales, auditoria): cada una usa una
+// conexion del pool hasta statement_timeout, asi que un usuario valido no debe
+// poder agotarlo. Cupo por cuenta (READ_RPM).
+const readLimiter = buildLimiter({
+  windowMs: 60 * 1000,
+  limit: env.readRpm,
+  keyGenerator: accountKey,
+});
+
 // Ingesta: margen amplio para el emisor, pero con techo frente a abuso. Cupo
 // por cuenta autenticada (INGEST_RPM).
 const ingestLimiter = buildLimiter({
@@ -55,4 +64,4 @@ const ingestLimiter = buildLimiter({
   keyGenerator: accountKey,
 });
 
-module.exports = { authLimiter, agentLimiter, ingestLimiter, accountKey };
+module.exports = { authLimiter, agentLimiter, ingestLimiter, readLimiter, accountKey };

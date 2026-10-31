@@ -30,10 +30,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-cuantico}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cuantico}
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
       JWT_EXPIRES_IN: 2h
-      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?Define DEMO_ADMIN_PASSWORD en .env}
-      DEMO_OPS_LA80_PASSWORD: ${DEMO_OPS_LA80_PASSWORD:?Define DEMO_OPS_LA80_PASSWORD en .env}
-      DEMO_OPS_FARMACIA_PASSWORD: ${DEMO_OPS_FARMACIA_PASSWORD:?Define DEMO_OPS_FARMACIA_PASSWORD en .env}
-      DEMO_INGEST_PASSWORD: ${DEMO_INGEST_PASSWORD:?Define DEMO_INGEST_PASSWORD en .env}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      DEMO_OPS_LA80_PASSWORD: ${DEMO_OPS_LA80_PASSWORD:-}
+      DEMO_OPS_FARMACIA_PASSWORD: ${DEMO_OPS_FARMACIA_PASSWORD:-}
+      DEMO_INGEST_PASSWORD: ${DEMO_INGEST_PASSWORD:-}
       CORS_ORIGIN: http://localhost:5173
       LLM_PROVIDER: ${LLM_PROVIDER:-fake}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -62,6 +62,8 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: http://localhost:3001
+        # El compose es de demostracion: el login muestra la pista de usuarios demo.
+        VITE_DEMO_HINT: ${VITE_DEMO_HINT:-true}
     ports:
       - "127.0.0.1:5173:80"
     depends_on:

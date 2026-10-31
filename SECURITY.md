@@ -22,7 +22,7 @@
   filas (20).
 - Validación estricta de tipos en los bordes: se rechazan los arreglos donde se espera un escalar y los caracteres de
   control en textos.
-- Límites configurables por entorno (valores en `backend/.env.example`; uno inválido hace fallar el arranque): `INGEST_RPM` (600/min por cuenta), `AGENT_RPM` (20/min por usuario), `DB_POOL_MAX` (10), `DB_STATEMENT_TIMEOUT_MS` (15 s), `DB_LOCK_TIMEOUT_MS` (5 s), `DB_IDLE_IN_TX_TIMEOUT_MS` (15 s) y `LLM_TIMEOUT_MS` (30 s). Los timeouts de la base se aplican a la API, no a las migraciones. Un timeout del proveedor de IA se responde como 502 con mensaje fijo.
+- Límites configurables por entorno (valores en `backend/.env.example`; uno inválido hace fallar el arranque): `INGEST_RPM` (600/min por cuenta), `AGENT_RPM` (20/min por usuario), `READ_RPM` (120/min por usuario en las lecturas a la base), `AGENT_DEADLINE_MS` (60 s en total por pregunta al agente), `DB_POOL_MAX` (10), `DB_STATEMENT_TIMEOUT_MS` (15 s), `DB_LOCK_TIMEOUT_MS` (5 s), `DB_IDLE_IN_TX_TIMEOUT_MS` (15 s) y `LLM_TIMEOUT_MS` (30 s). Los timeouts de la base se aplican a la API, no a las migraciones. Un timeout del proveedor de IA se responde como 502 con mensaje fijo.
 - En Docker Compose, la base, la API y el frontend se publican solo en `127.0.0.1`. El backend corre con `NODE_ENV=production`, sin log SQL (que incluiría valores como correos y búsquedas) y como usuario `node`, no root.
 
 ## Agente conversacional
@@ -41,3 +41,5 @@
 
 ## Reporte de vulnerabilidades
 Contacto: julian.desarrollo@gmail.com
+- Un timeout de la base (`lock_timeout` 55P03 o `statement_timeout` 57014) responde 503 `DB_BUSY` con `Retry-After`, sin detalles: es transitorio y el emisor puede reintentar (la ingesta es idempotente por `eventId`).
+- El login muestra la pista de usuarios de demostración solo en builds con `VITE_DEMO_HINT=true` (el compose); un despliegue real no anuncia cuentas.

@@ -164,7 +164,10 @@ Todo es opcional y se define por variable de entorno (ver `backend/.env.example`
 | Variable | Por defecto | Qué controla |
 | --- | --- | --- |
 | `INGEST_RPM` | 600 | Peticiones por minuto a `POST /events`, por cuenta autenticada (IP de respaldo). Súbela para un emisor de alto volumen (ADR 0001). |
-| `AGENT_RPM` | 20 | Peticiones por minuto a `POST /agent/chat`, por usuario (IP de respaldo). |
+| `AGENT_RPM` | 20 | Peticiones por minuto a `POST /agent/chat`, por usuario (IP de respaldo). Máximo 600. |
+| `READ_RPM` | 120 | Peticiones por minuto a las consultas de lectura (búsqueda, totales, auditoría, anomalías), por usuario. Evita agotar el pool de conexiones. |
+| `AGENT_DEADLINE_MS` | 60000 | Plazo total de una pregunta al agente (suma de todas sus llamadas al modelo). Al vencer responde un aviso sin llamar más al modelo. |
+| `VITE_DEMO_HINT` | `true` solo en el compose | Build del frontend: muestra en el login los usuarios de demostración. En un despliegue real déjalo en `false`. |
 | `TRUST_PROXY` | sin definir | Saltos de proxy confiables (`app.set('trust proxy', n)`). Sin definir no se confía en `X-Forwarded-For`; detrás de un balanceador pon el número exacto de proxies. |
 | `DB_POOL_MAX` | 10 | Conexiones máximas del pool de PostgreSQL (espera máxima por una conexión: 10 s). |
 | `DB_STATEMENT_TIMEOUT_MS` / `DB_LOCK_TIMEOUT_MS` / `DB_IDLE_IN_TX_TIMEOUT_MS` | 15000 / 5000 / 15000 | Timeouts de sesión de PostgreSQL de la API. No se aplican a las migraciones de `sequelize-cli`. |
@@ -193,7 +196,7 @@ Cálculo de costo (`backend/src/domain`, reglas `v1`):
 - **Horario nocturno [20:00, 06:00)** en la zona del comercio: 20:00:00 ya es noche y 06:00:00 ya es día. El enunciado dice "8:00 p.m. a 6:00 a.m." sin fijar los bordes.
 - El recargo nocturno lo decide **solo el instante del evento `entregada`** ("se completó"). Una recogida de noche con entrega de día cobra tarifa diurna.
 - El 15 % se aplica sobre base + distancia.
-- La distancia es Haversine entre las coordenadas de `recogida` y `entregada`, redondeada a metros (R = 6 371 000 m). El dinero se redondea una sola vez, half-up, al final.
+- La distancia es Haversine entre las coordenadas de `recogida` y `entregada`, redondeada a metros (R = 6 371 000 m). El dinero se redondea una sola vez, half-up, al final. El total se redondea una vez; en el desglose, la distancia se redondea aparte y el recargo nocturno es el residuo (total − base − distancia), así que puede diferir en una unidad del 15 % calculado sobre el subtotal mostrado.
 - Los montos son enteros en la unidad mínima de la moneda de la tarifa (ver monedas más abajo).
 - La entrega fallida cobra el 40 % de la base aunque no haya recogida.
 - **Entregada sin recogida** queda `incomplete`, sin monto (nunca 0): falta información, no es gratis.

@@ -6,6 +6,11 @@ import Label from '../../components/ui/Label.jsx';
 import Wordmark from '../../components/Wordmark.jsx';
 import NodesArt from './NodesArt.jsx';
 
+// La pista de usuarios de demo solo va en builds de demostracion (VITE_DEMO_HINT)
+// o en desarrollo: un despliegue real no debe anunciar cuentas.
+const showDemoHint = () =>
+  import.meta.env.VITE_DEMO_HINT === 'true' || import.meta.env.MODE === 'development';
+
 export default function LoginForm({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -78,10 +83,13 @@ export default function LoginForm({ onLogin }) {
         <div className="anim-subir w-full max-w-sm">
           <h2 className="text-3xl text-tinta">Entrar</h2>
           <p className="mt-1 text-tinta-tenue">Usa el correo y la clave que te dieron.</p>
-          <p className="mt-2 text-sm text-tinta-tenue">
-            Usuarios de demostración: ops.la80@cuantico.test, ops.farmacia@cuantico.test y
-            admin@cuantico.test. Las claves están en el archivo .env del proyecto (DEMO_*_PASSWORD).
-          </p>
+          {showDemoHint() && (
+            <p className="mt-2 text-sm text-tinta-tenue">
+              Usuarios de demostración: ops.la80@cuantico.test, ops.farmacia@cuantico.test y
+              admin@cuantico.test. Las claves están en el archivo .env del proyecto
+              (DEMO_*_PASSWORD).
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4" noValidate>
             <div>
               <Label htmlFor="email">Correo</Label>

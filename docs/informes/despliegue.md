@@ -11,7 +11,8 @@
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | backend | Solo con `anthropic`. Modelo por defecto `claude-opus-5-5`. |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | backend | Solo con `gemini`. Modelo por defecto `gemini-2.5-flash`. |
 | `DEMO_*_PASSWORD` | backend (seeds) | Solo para datos de ejemplo; en producción no se corren esos seeds. |
-| `VITE_API_URL` | frontend (build) | Se incrusta en el bundle al construir; también va en la CSP de `nginx.conf`. |
+| `VITE_API_URL` | frontend (build) | Se incrusta en el bundle al construir; también va en `connect-src` de la CSP (`frontend/nginx-security-headers.conf`), así que hay que cambiarla en los dos sitios. |
+| `VITE_DEMO_HINT` | frontend (build) | `true` muestra en el login los usuarios de demostración. Solo en demos; por defecto `false`. |
 
 Los secretos van en el gestor de secretos de la plataforma, nunca en el repositorio ni en la imagen.
 

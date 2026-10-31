@@ -149,6 +149,10 @@ function createGeminiProvider({ apiKey, model, client, timeoutMs }) {
     name: 'gemini',
     model: modelId,
     isProviderError,
+    // El turno sintetico de list_merchants no lleva thoughtSignature: vale para
+    // la familia 2.5 (probada); los modelos 3.x lo validan y lo rechazarian.
+    // Con otro modelo no se preinyecta y el modelo pide la lista el mismo.
+    preloadMerchants: /^gemini-2\.5/.test(modelId),
     async createMessage({ system, messages, tools }) {
       const raw = await ai.models.generateContent({
         model: modelId,
