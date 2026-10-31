@@ -1,7 +1,8 @@
 @import 'tailwindcss';
 
-/* Identidad visual de Cuantico: oscuro, luminoso, tecnico. Un solo tema
-   oscuro. Los colores se definen como tokens y se usan via Tailwind. */
+/* Identidad visual de Cuantico en version clara: fondo blanco, morado de marca
+   en la cabecera y el acento, y el degradado de marca solo como detalle. Los
+   colores son tokens usados via Tailwind. */
 @theme {
   /* Marca */
   --color-marca-noche: #050a5c;
@@ -12,7 +13,6 @@
 
   /* Interfaz */
   --color-noche: #0c021c;
-  --color-noche-elevada: #1a0b3f;
   --color-morado: #280f62;
   --color-morado-elevado: #351d6b;
   --color-violeta: #5318eb;
@@ -25,11 +25,19 @@
   --color-lima: #c4ee87;
   --color-lima-oscuro: #2f5a00;
 
-  /* Estado (sobre fondo oscuro) */
-  --color-error: #ff8a80;
-  --color-error-fondo: #3a0d16;
-  --color-aviso: #ffc639;
-  --color-exito: #5fd3a1;
+  /* Texto y bordes sobre fondo claro (contraste AA) */
+  --color-tinta: #1b1237;
+  --color-tinta-suave: #4a3f6b;
+  --color-tinta-tenue: #5f557f;
+  --color-borde: #e4dbf7;
+
+  /* Estado (sobre fondo claro) */
+  --color-error: #b3261e;
+  --color-error-fondo: #fdecea;
+  --color-aviso: #8a5a00;
+  --color-aviso-fondo: #fff4d6;
+  --color-exito: #2f5a00;
+  --color-exito-fondo: #e9f7d4;
 
   --font-titulo: 'Montserrat', system-ui, sans-serif;
   --font-cuerpo: 'Source Sans 3 Variable', system-ui, sans-serif;
@@ -48,7 +56,7 @@
 
 :root {
   --degradado-marca: linear-gradient(90deg, #d00de3, #6941f4, #3e7af9, #1de5e9);
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -58,8 +66,8 @@ body {
 
 body {
   margin: 0;
-  background-color: var(--color-noche);
-  color: var(--color-lila-claro);
+  background-color: #ffffff;
+  color: var(--color-tinta);
   font-family: var(--font-cuerpo);
   font-size: 17px;
   line-height: 1.6;
@@ -72,7 +80,7 @@ h2,
 h3 {
   font-family: var(--font-titulo);
   font-weight: 800;
-  line-height: 1.05;
+  line-height: 1.1;
 }
 h1 {
   letter-spacing: -0.045em;
@@ -86,9 +94,13 @@ h3 {
 
 /* Foco visible y consistente (WCAG AA) en un solo lugar. */
 :focus-visible {
-  outline: 2px solid var(--color-lila);
+  outline: 2px solid var(--color-violeta);
   outline-offset: 3px;
   border-radius: var(--radius-sutil);
+}
+/* Sobre fondos oscuros (cabecera y login) el foco es claro. */
+.sobre-oscuro :focus-visible {
+  outline-color: var(--color-lila);
 }
 
 .texto-degradado {
@@ -98,15 +110,10 @@ h3 {
   color: transparent;
 }
 
-/* Borde de 1px con el degradado de marca y brillo suave (respuesta del asistente). */
-.borde-degradado {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--color-noche-elevada), var(--color-noche-elevada)) padding-box,
-    var(--degradado-marca) border-box;
-  box-shadow:
-    0 0 32px -12px oklch(60% 0.25 300 / 0.55),
-    var(--shadow-tarjeta);
+/* Linea fina con el degradado de marca: el unico detalle de color fuerte. */
+.linea-marca {
+  height: 3px;
+  background: var(--degradado-marca);
 }
 
 /* ---- Animaciones (solo CSS) ---- */
@@ -159,18 +166,18 @@ h3 {
 }
 
 .anim-subir {
-  animation: subir 0.9s var(--ease-salida) both;
+  animation: subir 0.6s var(--ease-salida) both;
 }
 .anim-aparecer {
-  animation: aparecer 0.9s var(--ease-salida) both;
+  animation: aparecer 0.6s var(--ease-salida) both;
 }
 
-/* Orbes de luz a la deriva detras del contenido. */
+/* Luz difuminada a la deriva, solo en el login. */
 .orbe {
   position: absolute;
   border-radius: 999px;
   filter: blur(60px);
-  opacity: 0.55;
+  opacity: 0.5;
   pointer-events: none;
   animation: deriva 18s ease-in-out infinite;
 }
@@ -180,10 +187,6 @@ h3 {
 .orbe-magenta {
   background: radial-gradient(circle, #d00de3 0%, transparent 70%);
   animation-delay: -6s;
-}
-.orbe-cian {
-  background: radial-gradient(circle, #1de5e9 0%, transparent 70%);
-  animation-delay: -12s;
 }
 
 /* Revelar al entrar al viewport; sin soporte, el elemento se ve normal. */
@@ -215,9 +218,9 @@ h3 {
   border-radius: var(--radius-sutil);
   background: linear-gradient(
     90deg,
-    var(--color-morado) 25%,
-    var(--color-morado-elevado) 50%,
-    var(--color-morado) 75%
+    var(--color-lila-palido) 25%,
+    var(--color-lila-claro) 50%,
+    var(--color-lila-palido) 75%
   );
   background-size: 200% 100%;
   animation: brillo 1.6s linear infinite;

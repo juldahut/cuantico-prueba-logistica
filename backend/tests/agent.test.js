@@ -1,9 +1,11 @@
 'use strict';
 
+/* global jest */
 const request = require('supertest');
 const app = require('../src/app');
 const { runAgent, SYSTEM_PROMPT, MAX_STEPS, verifyNumbers } = require('../src/agent/agent.service');
 const { createFakeProvider } = require('../src/agent/providers/fake');
+const { getProvider } = require('../src/agent/providers');
 const { ingestEvent } = require('../src/services/ingestion.service');
 const { sequelize, resetDb, createMerchant, createUser, PICKUP, DROPOFF } = require('./helpers');
 
@@ -518,6 +520,35 @@ describe('POST /agent/chat', () => {
       expect((await request(app).post('/agent/chat').set(opsLa80.auth).send(body)).status).toBe(
         422,
       );
+    }
+  });
+
+  it('si el proveedor de IA falla, el mensaje llega claro y sin detalles internos', async () => {
+    const provider = getProvider();
+    const original = provider.isProviderError;
+    provider.isProviderError = () => true;
+    const spy = jest.spyOn(provider, 'createMessage');
+    try {
+      spy.mockRejectedValueOnce(Object.assign(new Error('secreto interno'), { status: 429 }));
+      const quota = await request(app)
+        .post('/agent/chat')
+        .set(opsLa80.auth)
+        .send({ message: 'hola' });
+      expect(quota.status).toBe(429);
+      expect(quota.body.error).toMatchObject({ code: 'AGENT_QUOTA' });
+      expect(quota.body.error.message).toMatch(/límite de uso/);
+
+      spy.mockRejectedValueOnce(Object.assign(new Error('secreto interno'), { status: 503 }));
+      const down = await request(app)
+        .post('/agent/chat')
+        .set(opsLa80.auth)
+        .send({ message: 'hola' });
+      expect(down.status).toBe(502);
+      expect(down.body.error.message).toBe('El asistente no está disponible ahora.');
+      expect(JSON.stringify([quota.body, down.body])).not.toMatch(/secreto/);
+    } finally {
+      spy.mockRestore();
+      provider.isProviderError = original;
     }
   });
 

@@ -2,10 +2,26 @@ import { formatAmount, formatDay, formatInstant, formatStatus } from './format.j
 
 // Los textos de terceros llegan entre delimitadores para el modelo; la
 // interfaz nunca los muestra.
-const MARKERS = /<<<(?:fin_)?texto_del_comercio>>>/g;
+const MARKERS = /<<<[a-z_]*>>>|<<<|>>>/g;
 
 export function stripMarkers(text) {
   return String(text).replace(MARKERS, '').trim();
+}
+
+// Nombre en lenguaje comun de lo que consulto el servidor (nunca el nombre
+// interno de la herramienta).
+const TOOL_LABELS = {
+  list_merchants: 'Comercios a los que tienes acceso',
+  resolve_period: 'Periodo consultado',
+  get_merchant_totals: 'Facturación del periodo',
+  get_courier_status_counts: 'Entregas del mensajero por estado',
+  search_deliveries: 'Búsqueda de entregas',
+  explain_cost: 'Detalle del costo de una entrega',
+  get_merchant_notes: 'Notas del comercio',
+};
+
+export function toolLabel(name) {
+  return TOOL_LABELS[name] ?? 'Consulta al sistema';
 }
 
 // Notas del comercio como dato: { merchantName, notes, instructions }.
@@ -31,25 +47,44 @@ export function extractNotes(toolCalls) {
   };
 }
 
-// Resumen legible de lo que devolvieron las tools: filas { label, value }
-// agrupadas en bloques con titulo. Es lo que se muestra cuando las cifras del
-// modelo no se pudieron verificar (en lugar del JSON crudo).
 const UNIT_NOTE = 'Montos en la unidad mínima de cada moneda (por ejemplo, centavos en MXN).';
 
 const BREAKDOWN_LABELS = {
-  base: 'Base',
-  distance: 'Distancia',
+  base: 'Tarifa base',
+  distance: 'Por distancia',
   nightSurcharge: 'Recargo nocturno',
 };
 
+// Resumen legible de lo que devolvieron las tools: bloques con titulo y filas
+// { label, value }. Nunca JSON ni nombres internos.
 export function buildSummary(toolCalls) {
   const blocks = [];
   for (const call of toolCalls ?? []) {
     const out = call.output;
     if (!out || call.error) continue;
 
-    if (call.name === 'get_merchant_totals') {
+    if (call.name === 'list_merchants') {
       blocks.push({
+        kind: call.name,
+        title: toolLabel(call.name),
+        rows: (out.merchants ?? []).map((m) => ({
+          label: String(m.name ?? ''),
+          value: String(m.time_zone ?? ''),
+        })),
+      });
+    } else if (call.name === 'resolve_period') {
+      blocks.push({
+        kind: call.name,
+        title: toolLabel(call.name),
+        rows: [
+          { label: 'Desde', value: formatDay(out.from) },
+          { label: 'Hasta', value: formatDay(out.last_day) },
+          { label: 'Zona horaria', value: String(out.time_zone ?? '') },
+        ],
+      });
+    } else if (call.name === 'get_merchant_totals') {
+      blocks.push({
+        kind: call.name,
         title: String(out.merchant_name ?? 'Comercio'),
         subtitle: `Del ${formatDay(out.from)} al ${formatDay(out.last_day)}`,
         note: UNIT_NOTE,
@@ -63,6 +98,7 @@ export function buildSummary(toolCalls) {
       });
     } else if (call.name === 'get_courier_status_counts') {
       blocks.push({
+        kind: call.name,
         title: String(out.courier_name ?? 'Mensajero'),
         subtitle: 'Entregas por estado',
         rows: Object.entries(out.counts ?? {}).map(([status, n]) => ({
@@ -72,6 +108,7 @@ export function buildSummary(toolCalls) {
       });
     } else if (call.name === 'search_deliveries') {
       blocks.push({
+        kind: call.name,
         title: `Entregas encontradas (${out.count ?? 0})`,
         rows: (out.results ?? []).map((r) => ({
           label: `${r.delivery_id} · ${formatStatus(r.status)}`,
@@ -82,11 +119,12 @@ export function buildSummary(toolCalls) {
     } else if (call.name === 'explain_cost') {
       const breakdown = out.calculation?.breakdown ?? {};
       blocks.push({
+        kind: call.name,
         title: `Entrega ${out.delivery_id}`,
         subtitle: out.completed_at ? formatInstant(out.completed_at) : formatStatus(out.status),
         note: UNIT_NOTE,
         rows: [
-          { label: 'Costo', value: formatAmount(out.amount, out.currency) },
+          { label: 'Costo total', value: formatAmount(out.amount, out.currency) },
           ...Object.entries(breakdown)
             .filter(([, v]) => Number.isFinite(v))
             .map(([k, v]) => ({

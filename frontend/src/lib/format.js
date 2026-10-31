@@ -40,8 +40,3 @@ const STATUS = {
 export function formatStatus(status) {
   return STATUS[status] ?? String(status ?? '—').replaceAll('_', ' ');
 }
-
-export function formatDuration(ms) {
-  if (!Number.isFinite(ms)) return null;
-  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
-}

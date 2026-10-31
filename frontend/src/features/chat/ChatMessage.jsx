@@ -12,26 +12,49 @@ export default function ChatMessage({ message }) {
   const notes = isUser ? null : extractNotes(message.toolCalls);
   const unverified = !isUser && message.verified === false;
   const verified = !isUser && message.verified === true && !ABNORMAL_STOPS.has(message.stopReason);
-  const summary = unverified ? buildSummary(message.toolCalls) : [];
+  // Sin confirmar las cifras del texto se muestran los datos directamente; una
+  // busqueda siempre muestra su lista, que es la respuesta.
+  const shown = isUser
+    ? []
+    : buildSummary(message.toolCalls).filter((b) => unverified || b.kind === 'search_deliveries');
 
   return (
-    <li className={`anim-subir flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <li className={`anim-subir flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+      <span className="px-2 text-xs font-semibold text-tinta-tenue">
+        {isUser ? 'Tú' : 'Asistente'}
+      </span>
       <article
         aria-label={isUser ? 'Tu mensaje' : 'Respuesta del asistente'}
         className={`max-w-[92%] rounded-tarjeta px-5 py-4 sm:max-w-[85%] ${
-          isUser ? 'bg-violeta text-white' : 'borde-degradado text-lila-claro'
+          isUser
+            ? 'rounded-tr-md bg-violeta text-white'
+            : 'rounded-tl-md border border-borde bg-lila-claro text-tinta'
         }`}
       >
         {/* Texto plano: React escapa el contenido, nunca se interpreta como HTML. */}
         <p className="whitespace-pre-wrap break-words">{stripMarkers(message.text)}</p>
         {(verified || unverified) && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {verified && <Badge tone="success">✓ Verificado</Badge>}
-            {unverified && <Badge tone="warning">Cifras sin verificar</Badge>}
+            {verified && (
+              <Badge
+                tone="success"
+                title="Las cifras de esta respuesta coinciden con los datos del sistema"
+              >
+                ✓ Verificado
+              </Badge>
+            )}
+            {unverified && (
+              <Badge
+                tone="warning"
+                title="No se pudo confirmar el texto del asistente; se muestran los datos del sistema"
+              >
+                Cifras sin verificar
+              </Badge>
+            )}
           </div>
         )}
         {notes && <NoteQuote {...notes} />}
-        <Summary blocks={summary} />
+        <Summary blocks={shown} />
         {!isUser && <ToolCallsPanel toolCalls={message.toolCalls} />}
       </article>
     </li>

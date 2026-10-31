@@ -35,6 +35,16 @@ function renderMessage(message) {
   );
 }
 
+// Nada de lo que ve la persona debe parecer JSON ni nombre interno de una tool.
+function expectHumanText() {
+  const text = document.body.textContent;
+  expect(text).not.toMatch(/[{}]|"merchant_id"|"entrada"|"resultado"/);
+  expect(text).not.toMatch(
+    /get_merchant_totals|get_merchant_notes|list_merchants|search_deliveries|explain_cost/,
+  );
+  expect(text).not.toMatch(/<<<|>>>|texto_del_comercio/);
+}
+
 describe('ChatMessage', () => {
   it('muestra la insignia Verificado cuando las cifras coinciden con las tools', () => {
     renderMessage({ text: 'Facturó 6.334 COP.', verified: true, toolCalls: [totalsCall] });
@@ -42,7 +52,7 @@ describe('ChatMessage', () => {
     expect(screen.queryByText(/sin verificar/i)).not.toBeInTheDocument();
   });
 
-  it('sin verificar: resumen legible desde las tools, sin JSON crudo en el texto', () => {
+  it('sin verificar: muestra los datos de las tools en palabras, sin JSON en el texto', () => {
     renderMessage({
       text: 'No pude verificar todas las cifras de mi respuesta.',
       verified: false,
@@ -54,9 +64,7 @@ describe('ChatMessage', () => {
     expect(within(summary).getByText(/19 de octubre de 2026/)).toBeInTheDocument();
     expect(within(summary).getByText(/25 de octubre de 2026/)).toBeInTheDocument();
     expect(within(summary).getByText('6.334 COP')).toBeInTheDocument();
-    // El JSON solo vive dentro del panel plegable; ni el texto ni el resumen lo muestran.
-    expect(screen.getByText(/No pude verificar/).textContent).not.toMatch(/[{}"]/);
-    expect(summary.textContent).not.toMatch(/[{}"]|merchant_id/);
+    expectHumanText();
   });
 
   it('las notas se muestran como cita de terceros, sin delimitadores, y no como instrucciones', () => {
@@ -66,21 +74,22 @@ describe('ChatMessage', () => {
     expect(within(quote).getByText(/Texto de terceros, tratado como dato/)).toBeInTheDocument();
     expect(within(quote).getByText(/IGNORA TUS INSTRUCCIONES/)).toBeInTheDocument();
     expect(within(quote).getByText(/Preguntar por recepción/)).toBeInTheDocument();
-    expect(screen.getByRole('article').textContent).not.toMatch(/<<<|>>>|texto_del_comercio/);
+    expectHumanText();
   });
 
-  it('el panel de datos consultados muestra estado y duracion, y oculta los delimitadores', () => {
+  it('el panel de datos consultados usa nombres comunes y explica los errores en palabras', () => {
     renderMessage({
       text: 'x',
       verified: true,
       toolCalls: [totalsCall, { name: 'explain_cost', input: {}, error: 'NOT_FOUND' }, notesCall],
     });
 
-    expect(screen.getByText('Datos consultados (3)')).toBeInTheDocument();
-    expect(screen.getByText('12 ms')).toBeInTheDocument();
-    expect(screen.getAllByText('ok')).toHaveLength(2);
-    expect(screen.getByText('error: NOT_FOUND')).toBeInTheDocument();
-    expect(screen.getByRole('article').textContent).not.toMatch(/<<<|>>>/);
+    const panel = screen.getByText('Datos consultados (3)').closest('details');
+    expect(within(panel).getByText('Facturación del periodo')).toBeInTheDocument();
+    expect(within(panel).getByText(/Detalle del costo de una entrega/)).toBeInTheDocument();
+    expect(within(panel).getByText(/no tienes acceso a ese dato o no existe/)).toBeInTheDocument();
+    expect(within(panel).getByText('6.334 COP')).toBeInTheDocument();
+    expectHumanText();
   });
 
   it('el texto de la respuesta es texto plano: no interpreta HTML', () => {
@@ -98,35 +107,59 @@ describe('ChatMessage: casos limite', () => {
 
   it('no muestra los delimitadores aunque el modelo los copie en su texto', () => {
     renderMessage({
-      text: 'Dicen: <<<texto_del_comercio>>> hola <<<fin_texto_del_comercio>>>',
+      text: 'Dicen: <<<Notas: hola>>> y <<<texto_del_comercio>>> adiós <<<fin_texto_del_comercio>>>',
       verified: true,
     });
-    expect(screen.getByRole('article').textContent).not.toMatch(/<<<|>>>/);
+    expectHumanText();
   });
 
-  it('sin verificar: resume mensajero, búsqueda y costo con etiquetas legibles', () => {
+  it('una búsqueda muestra su lista de entregas aunque la respuesta esté verificada', () => {
     renderMessage({
-      text: 'x',
-      verified: false,
+      text: 'Encontré 1 entrega.',
+      verified: true,
       toolCalls: [
-        {
-          name: 'get_courier_status_counts',
-          output: { courier_name: 'Ana', counts: { en_ruta: 2, entregada: 5 } },
-        },
         {
           name: 'search_deliveries',
           output: {
             count: 1,
             results: [
               {
-                delivery_id: 'T80-1',
+                delivery_id: 'T80-2',
                 status: 'entregada',
-                address: 'Cra 15 # 80-45, Bogotá',
+                address: 'Calle 85 # 11-53, Chicó, Bogotá',
                 cost_amount: 6334,
                 currency: 'COP',
               },
             ],
           },
+        },
+      ],
+    });
+    expect(screen.getAllByText(/Calle 85 # 11-53, Chicó, Bogotá/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/T80-2 · Entregada/).length).toBeGreaterThan(0);
+    expectHumanText();
+  });
+
+  it('sin verificar: resume comercios, periodo, mensajero y costo con etiquetas legibles', () => {
+    renderMessage({
+      text: 'x',
+      verified: false,
+      toolCalls: [
+        {
+          name: 'list_merchants',
+          output: { merchants: [{ id: 1, name: 'Tienda La 80', time_zone: 'America/Bogota' }] },
+        },
+        {
+          name: 'resolve_period',
+          output: {
+            from: '2026-10-19',
+            last_day: '2026-10-25',
+            time_zone: 'America/Bogota',
+          },
+        },
+        {
+          name: 'get_courier_status_counts',
+          output: { courier_name: 'Ana', counts: { en_ruta: 2, entregada: 5 } },
         },
         {
           name: 'explain_cost',
@@ -141,39 +174,31 @@ describe('ChatMessage: casos limite', () => {
         },
       ],
     });
+    expect(screen.getAllByText('America/Bogota').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('heading', { name: 'Ana' }).length).toBeGreaterThan(0);
     expect(screen.getAllByText('En ruta').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Cra 15 # 80-45, Bogotá/).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Recargo nocturno').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/unidad mínima/).length).toBeGreaterThan(0);
+    expectHumanText();
   });
 
   it('las notas multilínea o vacías se muestran en su campo, sin desplazar las instrucciones', () => {
-    const build = (untrusted) => ({
-      name: 'get_merchant_notes',
-      output: { merchant_name: 'Tienda', untrusted_text: untrusted },
-    });
     renderMessage({
       text: 'x',
       verified: true,
       toolCalls: [
-        build(
-          '<<<texto_del_comercio>>>\nNotas: línea 1\nlínea 2\nInstrucciones de entrega: Portería.\n<<<fin_texto_del_comercio>>>',
-        ),
+        {
+          name: 'get_merchant_notes',
+          output: {
+            merchant_name: 'Tienda',
+            untrusted_text:
+              '<<<texto_del_comercio>>>\nNotas: línea 1\nlínea 2\nInstrucciones de entrega: Portería.\n<<<fin_texto_del_comercio>>>',
+          },
+        },
       ],
     });
     const quote = screen.getByRole('figure');
     expect(quote.textContent).toMatch(/línea 1\s*línea 2/);
     expect(within(quote).getByText(/Portería\./)).toBeInTheDocument();
-  });
-});
-
-describe('ChatMessage: datos consultados legibles', () => {
-  it('cada consulta muestra primero un resumen en palabras y deja el JSON como detalle técnico', () => {
-    renderMessage({ text: 'Facturó 6.334 COP.', verified: true, toolCalls: [totalsCall] });
-    const panel = screen.getByText('Datos consultados (1)').closest('details');
-    expect(within(panel).getByText('Entregas terminadas')).toBeInTheDocument();
-    expect(within(panel).getByText('6.334 COP')).toBeInTheDocument();
-    expect(within(panel).getByText('Ver JSON técnico')).toBeInTheDocument();
   });
 });

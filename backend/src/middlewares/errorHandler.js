@@ -28,7 +28,10 @@ function errorHandler(err, req, res, next) {
   const body = {
     error: {
       // Un 500 nunca expone el mensaje interno (SQL, rutas, stack).
-      message: status >= 500 ? 'Error interno del servidor' : err.message,
+      message:
+        status >= 500 && !(err instanceof HttpError && err.expose)
+          ? 'Error interno del servidor'
+          : err.message,
       status,
     },
   };

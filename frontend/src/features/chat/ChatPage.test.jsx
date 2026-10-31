@@ -22,11 +22,11 @@ afterEach(() => vi.unstubAllGlobals());
 describe('ChatPage', () => {
   it('muestra el estado vacio con preguntas de ejemplo', () => {
     renderChat();
-    expect(screen.getByText(/pregunta sobre entregas/i)).toBeInTheDocument();
+    expect(screen.getByText(/qué quieres saber de tus entregas/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /semana pasada/i }).length).toBeGreaterThan(0);
   });
 
-  it('muestra en el lateral el usuario, su comercio con zona horaria y preguntas sugeridas', () => {
+  it('muestra arriba el usuario, su comercio con zona horaria y preguntas de ejemplo', () => {
     renderChat({
       user: {
         ...user,
@@ -34,8 +34,8 @@ describe('ChatPage', () => {
       },
     });
     expect(screen.getByText('ops@prueba.test')).toBeInTheDocument();
-    expect(screen.getByText('Operaciones')).toBeInTheDocument();
-    expect(screen.getByText('America/Bogota')).toBeInTheDocument();
+    expect(screen.getByText(/· Operaciones/)).toBeInTheDocument();
+    expect(screen.getByText(/hora de America\/Bogota/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /mensajero 1/i }).length).toBeGreaterThan(0);
   });
 
@@ -46,7 +46,7 @@ describe('ChatPage', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderChat();
 
-    await userEvent.click(screen.getAllByRole('button', { name: /^Facturación del 19 al 25/ })[0]);
+    await userEvent.click(screen.getByRole('button', { name: /del 19 al 25 de octubre de 2026/ }));
 
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).message).toBe(
       '¿Cuánto facturó Tienda La 80 del 19 al 25 de octubre de 2026?',
@@ -88,7 +88,8 @@ describe('ChatPage', () => {
     expect(await screen.findByText(/facturó 6\.334 COP/)).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.getByText('Datos consultados (1)')).toBeInTheDocument();
-    expect(screen.getByText('get_merchant_totals')).toBeInTheDocument();
+    expect(screen.getAllByText('Facturación del periodo').length).toBeGreaterThan(0);
+    expect(screen.queryByText('get_merchant_totals')).not.toBeInTheDocument();
   });
 
   it('muestra el error y permite reintentar sin duplicar la pregunta', async () => {
