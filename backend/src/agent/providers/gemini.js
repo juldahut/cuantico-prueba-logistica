@@ -2,9 +2,9 @@
 
 const { GoogleGenAI, ApiError } = require('@google/genai');
 
-// Alias que mantiene Google para la version vigente del modelo Flash. Se puede
-// fijar una version concreta con GEMINI_MODEL.
-const DEFAULT_MODEL = 'gemini-flash-latest';
+// Version fija (no un alias movil): el comportamiento con las tools no cambia
+// sin aviso. Se puede elegir otra con GEMINI_MODEL.
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 const REFUSAL_REASONS = new Set([
   'SAFETY',

@@ -9,7 +9,7 @@
 | `CORS_ORIGIN` | backend | Un solo origen: el del frontend. |
 | `LLM_PROVIDER` | backend | `fake` (por defecto), `anthropic` o `gemini`. |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | backend | Solo con `anthropic`. Modelo por defecto `claude-opus-5-5`. |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | backend | Solo con `gemini`. Modelo por defecto `gemini-flash-latest`. |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | backend | Solo con `gemini`. Modelo por defecto `gemini-2.5-flash`. |
 | `DEMO_*_PASSWORD` | backend (seeds) | Solo para datos de ejemplo; en producción no se corren esos seeds. |
 | `VITE_API_URL` | frontend (build) | Se incrusta en el bundle al construir; también va en la CSP de `nginx.conf`. |
 
