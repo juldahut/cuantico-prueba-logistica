@@ -131,7 +131,7 @@ function next(question, results) {
   if (intent === 'notes' || intent === 'totals') {
     if (!last) return toolUse('list_merchants', {});
     const merchant = findMerchant(question, results[0].data);
-    if (!merchant) return say('No encontré ese comercio entre los que tienes acceso.');
+    if (!merchant) return say('No tienes acceso a ese comercio, o no existe.');
 
     if (intent === 'notes') {
       if (results.length === 1) return toolUse('get_merchant_notes', { merchant_id: merchant.id });

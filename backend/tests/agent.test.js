@@ -117,7 +117,7 @@ describe('agente con el proveedor simulado (fake)', () => {
     });
 
     expect(result.toolCalls.map((c) => c.name)).not.toContain('get_merchant_totals');
-    expect(result.reply).toMatch(/no encontr|acceso/i);
+    expect(result.reply).toMatch(/no tienes acceso/i);
     expect(JSON.stringify(result)).not.toMatch(/10334|10\.334/);
   });
 
