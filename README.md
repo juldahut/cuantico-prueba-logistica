@@ -15,7 +15,7 @@ Requisitos: Docker Desktop (o Docker Engine con Compose v2.24+). Puertos libres:
    - `POSTGRES_PASSWORD`: una clave simple (sin caracteres especiales).
    - `JWT_SECRET`: mínimo 32 caracteres. Genera uno con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
    - `DEMO_ADMIN_PASSWORD`, `DEMO_OPS_LA80_PASSWORD`, `DEMO_OPS_FARMACIA_PASSWORD`, `DEMO_INGEST_PASSWORD`: una clave distinta por usuario de ejemplo (12+ caracteres).
-   - Opcional: `LLM_PROVIDER=anthropic` y `ANTHROPIC_API_KEY` para usar Claude. Sin eso, el agente usa el modelo simulado (`fake`).
+   - Opcional: `LLM_PROVIDER=anthropic` con `ANTHROPIC_API_KEY` (Claude), o `LLM_PROVIDER=gemini` con `GEMINI_API_KEY` y, si quieres, `GEMINI_MODEL` (Gemini). Sin eso, el agente usa el modelo simulado (`fake`).
 2. Levanta todo con un comando:
    ```bash
    docker compose up --build
@@ -67,7 +67,7 @@ Los caminos críticos tienen test: idempotencia (×3 y 10 en paralelo), desorden
 - **Anomalías visibles** (`GET /anomalies`) en vez de descartar en silencio: conflictos, entregada + fallida,
   entregada sin recogida, transiciones fuera de orden, sin tarifa.
 - **Agente**: el LLM orquesta; tools deterministas calculan y el servidor autoriza con el alcance de la sesión. Proveedor
-  intercambiable (`fake` para tests y demo; `anthropic` con el SDK oficial).
+  intercambiable (`fake` para tests y demo; `anthropic` y `gemini` con sus SDK oficiales).
 - **Escalado a 50 comercios / 10.000 eventos/s y auditoría**: ADR 0001.
 
 ## Requisitos de operaciones: qué pidieron, qué hice y por qué
@@ -103,7 +103,8 @@ Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Ti
 - Máximo 5 tools por paso; en el último paso no se ejecutan tools.
 - `toolCalls` se devuelve completo al cliente a propósito: es el panel de "datos consultados" y solo contiene datos del alcance del usuario.
 - La respuesta incluye `toolCalls` (nombre, entrada, salida o error): son los "datos consultados".
-- Proveedores: `LLM_PROVIDER=fake` (por defecto) es un modelo simulado por reglas, determinista y sin llave; sirve para tests y para la demo. `LLM_PROVIDER=anthropic` usa el SDK oficial con `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` (por defecto `claude-opus-5-5`, esfuerzo `low`, tools con `strict` y respaldo automático si el modelo declina). El proveedor real no se probó contra la API en este repositorio.
+- Proveedores: `LLM_PROVIDER=fake` (por defecto) es un modelo simulado por reglas, determinista y sin llave; sirve para tests y para la demo. `LLM_PROVIDER=anthropic` usa el SDK oficial con `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` (por defecto `claude-opus-5-5`, esfuerzo `low`, tools con `strict` y respaldo automático si el modelo declina). `LLM_PROVIDER=gemini` usa el SDK oficial `@google/genai` con function calling (`GEMINI_API_KEY`; `GEMINI_MODEL`, por defecto `gemini-flash-latest`). Traduce el formato interno del agente a `functionCall`/`functionResponse` y reenvía los turnos del modelo tal cual llegan, con su firma de pensamiento. Un bloqueo de seguridad de Gemini se trata como `refusal` y los errores de la API como 502. Las tools, los límites, el alcance y la verificación de cifras son los mismos para los tres proveedores. Ninguno de los proveedores reales se probó contra su API en este repositorio; Gemini se probó con un SDK simulado.
+- **Datos que salen a un tercero:** con `anthropic` o `gemini`, las salidas de las tools (cifras, nombres, direcciones, notas) viajan al proveedor. Usa llaves de un proyecto con facturación y condiciones de uso de datos aceptadas por la empresa: en el nivel gratuito de la API de Gemini, Google puede usar los datos para mejorar sus modelos. `gemini-flash-latest` es un alias que puede cambiar de versión; en producción fija `GEMINI_MODEL`.
 - Periodos relativos: las semanas empiezan el lunes; "la semana pasada" es de lunes a domingo, en la zona del comercio.
 
 ## Supuestos

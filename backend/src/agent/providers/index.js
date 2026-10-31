@@ -3,19 +3,29 @@
 const env = require('../../config/env');
 const { createFakeProvider } = require('./fake');
 const { createAnthropicProvider } = require('./anthropic');
+const { createGeminiProvider } = require('./gemini');
 
 let cached;
 
-// Proveedor elegido por LLM_PROVIDER: "fake" (por defecto, sin llave) o
-// "anthropic".
-function getProvider() {
-  if (!cached) {
-    cached =
-      env.llmProvider === 'anthropic'
-        ? createAnthropicProvider({ apiKey: env.anthropicApiKey, model: env.anthropicModel })
-        : createFakeProvider();
+// Proveedor elegido por LLM_PROVIDER: "fake" (por defecto, sin llave),
+// "anthropic" o "gemini". Todos hablan el mismo formato interno del agente.
+function createProvider(config) {
+  switch (config.llmProvider) {
+    case 'anthropic':
+      return createAnthropicProvider({
+        apiKey: config.anthropicApiKey,
+        model: config.anthropicModel,
+      });
+    case 'gemini':
+      return createGeminiProvider({ apiKey: config.geminiApiKey, model: config.geminiModel });
+    default:
+      return createFakeProvider();
   }
+}
+
+function getProvider() {
+  if (!cached) cached = createProvider(env);
   return cached;
 }
 
-module.exports = { getProvider };
+module.exports = { getProvider, createProvider };

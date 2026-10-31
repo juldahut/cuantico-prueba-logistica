@@ -21,7 +21,7 @@ persistencia (memoria, SQLite o lo que se justifique).
   cada petición.
 - **Frontend:** React 19 + Vite + Tailwind 4 (SPA), servido con nginx en Docker.
 - **Agente:** tools deterministas y proveedor de LLM intercambiable. Por defecto es un modelo simulado (sin llave, tests
-  deterministas); opcionalmente Anthropic, con el SDK oficial y la llave en una variable de entorno.
+  deterministas); opcionalmente Anthropic o Gemini, cada uno con su SDK oficial y la llave en una variable de entorno. Cada proveedor traduce el formato interno del agente al de su API; el bucle, las tools y la verificación no cambian.
 - **Pruebas:**
   - Backend: Jest + Supertest contra una base de test separada (`cuantico_test`); las migraciones se aplican en un
     `globalSetup`.

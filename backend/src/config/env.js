@@ -27,10 +27,13 @@ module.exports = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '2h',
   // Un solo origen configurable; sin credentials (el JWT viaja en Authorization).
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  // Proveedor del LLM del agente. "fake" (por defecto) usa un modelo simulado
+  // Proveedor del LLM del agente: "fake", "anthropic" o "gemini". "fake" (por defecto) usa un modelo simulado
   // determinista: sirve para tests y para correr el proyecto sin llave.
   llmProvider: process.env.LLM_PROVIDER || 'fake',
   // Opcional. Solo se lee si LLM_PROVIDER=anthropic. Nunca va en el codigo.
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   anthropicModel: process.env.ANTHROPIC_MODEL || '',
+  // Opcionales. Solo se leen si LLM_PROVIDER=gemini. Nunca van en el codigo.
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
+  geminiModel: process.env.GEMINI_MODEL || '',
 };

@@ -12,8 +12,8 @@
   antes de fusionar:
   - `revisor-seguridad`: inyección SQL, prompt injection, fuga entre comercios, secretos y validación.
   - `auditor-reglas`: reglas de negocio y tests que faltan.
-- El agente del producto usa Claude (SDK oficial `@anthropic-ai/sdk`) solo si se configura `LLM_PROVIDER=anthropic`;
-  por defecto usa un modelo simulado determinista.
+- El agente del producto usa Claude (SDK `@anthropic-ai/sdk`) con `LLM_PROVIDER=anthropic`, o Gemini (SDK
+  `@google/genai`) con `LLM_PROVIDER=gemini`. Por defecto usa un modelo simulado determinista.
 
 ## Qué corregí o rechacé
 **Correcciones mías al plan inicial.** Lo escribió sin el enunciado: lo buscó en un PDF que no existía.
