@@ -237,10 +237,15 @@ const handlers = {
     if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new ToolInputError('delivery_id invalido');
     const { delivery, calculations } = await queries.costAudit(user, id);
     const latest = calculations[0] || null;
+    const merchant = await db.Merchant.findByPk(delivery.merchantId, { attributes: ['timeZone'] });
+    const completedAt = delivery.completedAt ? new Date(delivery.completedAt).toISOString() : null;
     return {
       delivery_id: delivery.id,
       status: delivery.status,
-      completed_at: delivery.completedAt,
+      // Instante en UTC y, calculada por el servidor, la fecha local del
+      // comercio: el modelo no tiene que convertir zonas horarias.
+      completed_at: completedAt,
+      completed_local_date: completedAt ? localToday(completedAt, merchant.timeZone) : null,
       cost_status: delivery.costStatus,
       amount: delivery.costAmount,
       currency: delivery.currency,

@@ -21,11 +21,21 @@ Reglas:
 // --- Verificacion de cifras -------------------------------------------------
 // Toda fecha y todo numero de la respuesta debe salir de un campo de datos de
 // las tools: montos, conteos y fechas. No cuentan los ids, el texto de
-// terceros (notas) ni lo que escribio el usuario. Limitacion conocida: cifras
-// escritas en palabras ("seis mil") no se detectan.
+// terceros (notas, direcciones) ni lo que escribio el usuario. Limitacion
+// conocida: cifras escritas en palabras ("seis mil") no se detectan.
 
-const DATE_KEYS = new Set(['from', 'to', 'last_day', 'today', 'completed_at']);
-const SKIP_KEYS = new Set(['untrusted_text', 'warning']);
+const DATE_KEYS = new Set([
+  'from',
+  'to',
+  'last_day',
+  'today',
+  'completed_at',
+  'completed_local_date',
+]);
+// Texto libre de terceros: ni sus numeros cuentan como cifras validas ni se
+// quita de la respuesta antes de verificar. Si el modelo repite una direccion
+// con "9.999.999", esa cifra no queda verificada.
+const SKIP_KEYS = new Set(['untrusted_text', 'warning', 'address']);
 const DATE_TOKEN = /\b\d{4}-\d{2}-\d{2}\b/g;
 // Numeros sueltos (no pegados a letras ni guiones, como "v1" o "L-1").
 const NUMBER_TOKEN = /(?<![\w.,-])\d+(?:[.,]\d+)*(?![\w-])/g;
@@ -33,7 +43,9 @@ const THOUSANDS = /^\d{1,3}(?:[.,]\d{3})+$/;
 
 function collectAllowed(value, key, acc) {
   if (SKIP_KEYS.has(key)) return acc;
-  if (typeof value === 'number') {
+  if (value instanceof Date) {
+    if (DATE_KEYS.has(key)) acc.dates.add(value.toISOString().slice(0, 10));
+  } else if (typeof value === 'number') {
     if (!/(^|_)id$/i.test(key || '')) acc.numbers.add(String(value));
   } else if (typeof value === 'string') {
     if (DATE_KEYS.has(key)) acc.dates.add(value.slice(0, 10));

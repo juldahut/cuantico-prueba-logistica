@@ -21,7 +21,7 @@
   filas (20).
 - Validación estricta de tipos en los bordes: se rechazan los arreglos donde se espera un escalar y los caracteres de
   control en textos.
-- PostgreSQL publicado solo en `127.0.0.1` en Docker Compose.
+- En Docker Compose, la base, la API y el frontend se publican solo en `127.0.0.1`. El backend corre con `NODE_ENV=production`, sin log SQL (que incluiría valores como correos y búsquedas) y como usuario `node`, no root.
 
 ## Agente conversacional
 - Solo tools de lectura. El alcance lo impone la sesión en cada tool, no el modelo.
@@ -29,7 +29,7 @@
   como resultado de tools, normalizados, sin caracteres de control ni `<`/`>`, truncados, y las notas además van
   delimitadas.
 - Límites: 5 pasos, 5 tools por paso, 40 000 tokens y mensajes de 1000 caracteres.
-- Verificación de cifras: un número que no salga de los datos de las tools descarta la respuesta del modelo.
+- Verificación de cifras: un número que no salga de los datos de las tools descarta la respuesta del modelo. Los números de textos de terceros (notas, direcciones) no cuentan.
 - El historial del cliente solo admite preguntas del usuario.
 
 ## Frontend
