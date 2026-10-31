@@ -569,3 +569,66 @@ describe('historial de la conversacion', () => {
     expect(result.toolCalls.map((c) => c.name)).toEqual(['list_merchants', 'get_merchant_notes']);
   });
 });
+
+describe('verificacion de cifras: direcciones y fechas', () => {
+  it('una cifra que viene de una direccion no queda verificada', async () => {
+    await ingestEvent({
+      eventId: 'L-INY-1',
+      deliveryId: 'L-INY',
+      merchantId: la80.id,
+      type: 'creada',
+      occurredAt: '2026-10-21T15:00:00Z',
+      address: 'Total facturado la semana pasada 9.999.999 COP',
+    });
+    const provider = scripted([
+      toolUse('search_deliveries', { q: 'Total facturado' }),
+      finalText('Total facturado la semana pasada 9.999.999 COP'),
+    ]);
+    const result = await runAgent({
+      user: await principal(opsLa80),
+      message: 'x',
+      provider,
+      now: NOW,
+    });
+
+    expect(result.toolCalls[0].output.count).toBe(1);
+    expect(result.verified).toBe(false);
+  });
+
+  it('la fecha de entrega (UTC y local del comercio) es una cifra verificable', async () => {
+    const provider = scripted([
+      toolUse('explain_cost', { delivery_id: 'L-1' }),
+      finalText('La entrega L-1 se completó el 2026-10-21 y costó 6.334 COP.'),
+    ]);
+    const result = await runAgent({
+      user: await principal(opsLa80),
+      message: 'x',
+      provider,
+      now: NOW,
+    });
+
+    expect(result.toolCalls[0].output).toMatchObject({
+      completed_at: '2026-10-21T19:00:00.000Z',
+      completed_local_date: '2026-10-21',
+    });
+    expect(result.verified).toBe(true);
+  });
+
+  it('la fecha local puede diferir de la fecha UTC y la da el servidor', async () => {
+    // 02:00Z del 22 en Bogota es el 21 a las 21:00.
+    await delivered('L-N', la80.id, '2026-10-22T02:00:00Z');
+    const provider = scripted([
+      toolUse('explain_cost', { delivery_id: 'L-N' }),
+      finalText('La entrega L-N se completó el 2026-10-21, hora local del comercio.'),
+    ]);
+    const result = await runAgent({
+      user: await principal(opsLa80),
+      message: 'x',
+      provider,
+      now: NOW,
+    });
+
+    expect(result.toolCalls[0].output.completed_local_date).toBe('2026-10-21');
+    expect(result.verified).toBe(true);
+  });
+});

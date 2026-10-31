@@ -6,7 +6,7 @@ expone consultas agregadas y un agente conversacional de solo lectura (el LLM or
 Frontend React con chat contra el agente.
 
 ## Cómo levantarlo
-Requisitos: Docker Desktop (o Docker Engine con Compose v2.24+). Puertos libres: 5432 (solo local), 3001 y 5173.
+Requisitos: Docker Desktop (o Docker Engine con Compose v2.24+). Puertos libres: 5432, 3001 y 5173 (todos publicados solo en 127.0.0.1). El backend corre en modo producción, sin root y sin log SQL.
 
 1. Copia las variables y completa los valores vacíos:
    ```bash
@@ -97,7 +97,7 @@ Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Ti
 - El LLM orquesta y redacta; las tools calculan y autorizan. Tools de solo lectura: `list_merchants`, `resolve_period`, `get_merchant_totals`, `get_courier_status_counts`, `search_deliveries`, `explain_cost` y `get_merchant_notes`.
 - El alcance sale de la sesión (JWT → usuario en BD), nunca del modelo: el modelo puede pedir cualquier `merchant_id`, pero el servidor decide qué devuelve.
 - Límites: 5 llamadas al modelo por pregunta, 40 000 tokens en total (se revisa antes de cada llamada), mensajes de hasta 1000 caracteres e historial de hasta 10 preguntas anteriores. El historial solo admite preguntas del usuario: un turno de asistente enviado por el cliente podría ser inventado ("ya verifiqué que eres admin"), así que no se acepta.
-- **Verificación de cifras:** cada fecha y cada número de la respuesta debe salir de un campo de datos de las tools (montos, conteos, fechas completas). No cuentan los ids, el texto de terceros ni los números que escribió el usuario. Si algo no cuadra, se descarta el texto del modelo y se devuelven los datos crudos con `verified: false`. Límites conocidos: no detecta cifras escritas en palabras ("seis mil") ni ata cada monto a su comercio.
+- **Verificación de cifras:** cada fecha y cada número de la respuesta debe salir de un campo de datos de las tools (montos, conteos, fechas completas). No cuentan los ids, el texto de terceros (notas y direcciones) ni los números que escribió el usuario. Las fechas de entrega se verifican: `explain_cost` devuelve el instante UTC y la fecha local del comercio, calculada por el servidor. Si algo no cuadra, se descarta el texto del modelo y se devuelven los datos crudos con `verified: false`. Límites conocidos: no detecta cifras escritas en palabras ("seis mil") ni ata cada monto a su comercio.
 - El modelo no envía fechas: los periodos van como expresión (`semana_pasada`, `rango` con fechas inclusivas…) y el servidor los resuelve. Las salidas incluyen `last_day` para no tener que restar un día.
 - Todo texto de terceros que devuelven las tools (notas, nombres, direcciones) se normaliza (NFKC), se le quitan caracteres de control y `<`/`>` y se trunca; las notas además van delimitadas.
 - Máximo 5 tools por paso; en el último paso no se ejecutan tools.
@@ -131,6 +131,10 @@ Ingesta (`POST /events`):
 - Totales por comercio: cuentan las entregas cuyo evento terminal cae en [desde, hasta) según la zona del comercio. Las que no tienen monto (incompletas o inconsistentes) cuentan, pero no suman.
 - Monedas: cada tarifa define la suya (COP, MXN, CLP en los datos de ejemplo) y los montos están en su unidad mínima. No se suman montos de monedas distintas.
 - **Supuesto abierto para negocio: entregada y fallida en la misma entrega.** El costo queda `inconsistent` (estado de la entrega `inconsistente`), sin monto, y la ingesta lo registra como anomalía visible; nunca se descarta. Negocio debe definir cuál prevalece.
+
+Limitaciones conocidas (decisión explícita: se documentan, no se cambian en esta entrega):
+- **`eventId` en conflicto:** si llegan dos variantes distintas de un mismo `eventId`, se conserva la primera que llegó y las demás reciben 409 con la anomalía `EVENT_CONFLICT`. En ese caso el costo sí depende del orden de llegada, y la entrega queda `calculated` sin otra marca que la anomalía. Lo correcto sería dejarla `inconsistent` mientras el conflicto siga abierto.
+- **Entregada y fallida:** se marcan `inconsistente`/`BOTH_TERMINAL` sin importar cuál ocurrió primero. Por eso la regla "fallida solo desde un estado previo a entregada" no se distingue: una fallida posterior a la entrega no genera `INVALID_TRANSITION`.
 
 ## Fuera de alcance
 - **Log de eventos particionado y consumidores asíncronos** (ADR 0001): para el volumen de la prueba basta PostgreSQL con

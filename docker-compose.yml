@@ -21,7 +21,8 @@ services:
     build: ./backend
     command: sh -c "npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all && node src/server.js"
     environment:
-      NODE_ENV: development
+      # Modo produccion: sin log SQL (incluiria correos y textos de busqueda).
+      NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgres://${POSTGRES_USER:-cuantico}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cuantico}
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
@@ -35,7 +36,8 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
     ports:
-      - "3001:3001"
+      # Solo local: la API no queda expuesta a otras maquinas de la red.
+      - "127.0.0.1:3001:3001"
     depends_on:
       db:
         condition: service_healthy
@@ -46,7 +48,7 @@ services:
       args:
         VITE_API_URL: http://localhost:3001
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"
     depends_on:
       - backend
 

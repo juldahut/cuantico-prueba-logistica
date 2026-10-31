@@ -21,5 +21,7 @@ module.exports = {
   // .github/workflows/ci.yml). Sin log SQL para que la salida de los tests
   // sea legible.
   test: { ...base, use_env_variable: 'TEST_DATABASE_URL', logging: false },
-  production: { ...base, use_env_variable: 'DATABASE_URL' },
+  // Sin log SQL: Sequelize imprime cada consulta con sus valores (correos,
+  // textos de busqueda), y eso no debe quedar en los logs del contenedor.
+  production: { ...base, use_env_variable: 'DATABASE_URL', logging: false },
 };

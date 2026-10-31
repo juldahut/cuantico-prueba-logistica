@@ -11,3 +11,5 @@ Priorizadas de mayor a menor impacto. Se completa durante el desarrollo.
 | Media | Verificar que cada monto de la respuesta corresponda al comercio y la moneda correctos | Hoy se verifica que la cifra exista en los datos, no a qué dato pertenece | Medio |
 | Media | Probar el proveedor Anthropic con un conjunto de preguntas de evaluación | Solo se probó con el modelo simulado | Medio |
 | Baja | Actualizar dependencias con avisos moderados (`uuid` vía sequelize, `deepmerge` vía jest) | `npm audit` sin altos, pero con moderados de dependencias transitivas | Bajo |
+| Alta | Marcar la entrega como `inconsistent` mientras tenga un `EVENT_CONFLICT` abierto | Hoy gana la primera variante que llega y el costo depende del orden de llegada en ese caso | Bajo |
+| Media | Distinguir el orden entre entregada y fallida (fallida posterior a la entrega como `INVALID_TRANSITION`) | Hoy ambos órdenes quedan como `BOTH_TERMINAL`; depende además de que negocio decida cuál prevalece | Bajo |

@@ -20,6 +20,10 @@ Los secretos van en el gestor de secretos de la plataforma, nunca en el reposito
 - En producción: migraciones como paso previo del despliegue (job aparte), no dentro del arranque del contenedor, y sin
   seeds de ejemplo.
 
+## Contenedor
+- El backend corre como usuario `node` (sin root) y con `NODE_ENV=production`, que desactiva el log SQL.
+- En Compose los puertos se publican solo en `127.0.0.1`. Detrás de un balanceador, la API no debe quedar expuesta directamente.
+
 ## Healthcheck
 - `GET /health` responde 200 con `{status, db}` si la base contesta, o 503 si no. Sirve para readiness.
 - PostgreSQL en Compose usa `pg_isready`.
