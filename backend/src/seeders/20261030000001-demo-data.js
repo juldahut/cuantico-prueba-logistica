@@ -15,6 +15,17 @@ const MERCHANTS = [
     delivery_instructions: 'Portería del edificio, preguntar por recepción.',
     tariff: { base_amount: 5000, per_km_amount: 1200, currency: 'COP' },
     origin: { lat: 4.6697, lon: -74.0817 },
+    addresses: [
+      'Cra 15 # 80-45, Bogotá',
+      'Calle 85 # 11-53, Chicó, Bogotá',
+      'Cra 7 # 72-41, Bogotá',
+      'Calle 100 # 19-61, Bogotá',
+      'Av. Boyacá # 80-94, Bogotá',
+      'Calle 53 # 21-30, Galerías, Bogotá',
+      'Cra 11 # 93-07, Chicó, Bogotá',
+      'Calle 72 # 10-34, Bogotá',
+      'Cra 30 # 45-03, Teusaquillo, Bogotá',
+    ],
   },
   {
     name: 'Farmacia Central',
@@ -24,6 +35,15 @@ const MERCHANTS = [
     // MXN en centavos (unidad minima).
     tariff: { base_amount: 4500, per_km_amount: 900, currency: 'MXN' },
     origin: { lat: 19.4326, lon: -99.1332 },
+    addresses: [
+      'Av. Insurgentes Sur 1602, Crédito Constructor, Ciudad de México',
+      'Calle Durango 205, Roma Norte, Ciudad de México',
+      'Av. Álvaro Obregón 130, Roma Norte, Ciudad de México',
+      'Calle Ámsterdam 240, Condesa, Ciudad de México',
+      'Av. Reforma 222, Juárez, Ciudad de México',
+      'Calle Madero 32, Centro, Ciudad de México',
+      'Av. Universidad 1000, Coyoacán, Ciudad de México',
+    ],
   },
   {
     name: 'Librería del Sur',
@@ -33,6 +53,15 @@ const MERCHANTS = [
     // CLP no tiene decimales: la unidad minima es el peso.
     tariff: { base_amount: 2500, per_km_amount: 600, currency: 'CLP' },
     origin: { lat: -33.4489, lon: -70.6693 },
+    addresses: [
+      'Av. Providencia 1234, Providencia, Santiago',
+      'Calle Merced 838, Santiago Centro, Santiago',
+      'Av. Apoquindo 3000, Las Condes, Santiago',
+      'Calle Huérfanos 1052, Santiago Centro, Santiago',
+      'Av. Italia 1450, Ñuñoa, Santiago',
+      'Calle Lastarria 90, Santiago Centro, Santiago',
+      'Av. Irarrázaval 2500, Ñuñoa, Santiago',
+    ],
   },
 ];
 
@@ -46,7 +75,7 @@ function iso(ms) {
 
 // Construye los eventos de una entrega. `ending`: entregada | fallida | ambos |
 // sin_recogida | en_curso.
-function buildDelivery({ id, merchantId, courierId, origin, startUtc, ending, km = 3 }) {
+function buildDelivery({ id, merchantId, courierId, origin, address, startUtc, ending, km = 3 }) {
   const t0 = Date.parse(startUtc);
   const dropoff = { lat: origin.lat + km / 111.195, lon: origin.lon };
   const base = { deliveryId: id, merchantId };
@@ -56,7 +85,7 @@ function buildDelivery({ id, merchantId, courierId, origin, startUtc, ending, km
       eventId: `${id}-creada`,
       type: 'creada',
       occurredAt: iso(t0),
-      address: `Dirección de ${id}`,
+      address,
     },
     {
       ...base,
@@ -164,11 +193,15 @@ module.exports = {
     MERCHANTS.forEach((m, mi) => {
       const id = merchantId.get(m.name);
       const prefix = ['T80', 'FAR', 'LIB'][mi];
+      // Direcciones realistas para que la busqueda por calle o barrio tenga resultados.
+      let n = 0;
+      const nextAddress = () => m.addresses[n++ % m.addresses.length];
       const days = ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-27', '2026-10-28'];
       days.slice(0, 4).forEach((day, di) => {
         plans.push({
           id: `${prefix}-${di + 1}`,
           merchantId: id,
+          address: nextAddress(),
           origin: m.origin,
           startUtc: `${day}T17:00:00Z`,
           ending: 'entregada',
@@ -178,6 +211,7 @@ module.exports = {
       plans.push({
         id: `${prefix}-N`,
         merchantId: id,
+        address: nextAddress(),
         origin: m.origin,
         startUtc: '2026-10-29T01:30:00Z',
         ending: 'entregada',
@@ -186,6 +220,7 @@ module.exports = {
       plans.push({
         id: `${prefix}-F`,
         merchantId: id,
+        address: nextAddress(),
         origin: m.origin,
         startUtc: '2026-10-27T15:00:00Z',
         ending: 'fallida',
@@ -193,6 +228,7 @@ module.exports = {
       plans.push({
         id: `${prefix}-C`,
         merchantId: id,
+        address: nextAddress(),
         origin: m.origin,
         startUtc: '2026-10-29T16:00:00Z',
         ending: 'en_curso',
@@ -201,6 +237,7 @@ module.exports = {
         plans.push({
           id: `${prefix}-SR`,
           merchantId: id,
+          address: nextAddress(),
           origin: m.origin,
           startUtc: '2026-10-28T14:00:00Z',
           ending: 'sin_recogida',
@@ -208,6 +245,7 @@ module.exports = {
         plans.push({
           id: `${prefix}-AF`,
           merchantId: id,
+          address: nextAddress(),
           origin: m.origin,
           startUtc: '2026-10-28T15:00:00Z',
           ending: 'ambos',

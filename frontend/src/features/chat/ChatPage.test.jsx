@@ -23,7 +23,34 @@ describe('ChatPage', () => {
   it('muestra el estado vacio con preguntas de ejemplo', () => {
     renderChat();
     expect(screen.getByText(/pregunta sobre entregas/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /semana pasada/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /semana pasada/i }).length).toBeGreaterThan(0);
+  });
+
+  it('muestra en el lateral el usuario, su comercio con zona horaria y preguntas sugeridas', () => {
+    renderChat({
+      user: {
+        ...user,
+        merchants: [{ id: 1, name: 'Tienda La 80', timeZone: 'America/Bogota' }],
+      },
+    });
+    expect(screen.getByText('ops@prueba.test')).toBeInTheDocument();
+    expect(screen.getByText('Operaciones')).toBeInTheDocument();
+    expect(screen.getByText('America/Bogota')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /mensajero 1/i }).length).toBeGreaterThan(0);
+  });
+
+  it('una pregunta sugerida se envia con el comercio del usuario', async () => {
+    const fetchMock = vi.fn(() =>
+      jsonResponse(200, { reply: 'Listo.', verified: true, toolCalls: [] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderChat();
+
+    await userEvent.click(screen.getAllByRole('button', { name: /^Facturación del 19 al 25/ })[0]);
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).message).toBe(
+      '¿Cuánto facturó Tienda La 80 del 19 al 25 de octubre de 2026?',
+    );
   });
 
   it('envia la pregunta, muestra la carga y luego la respuesta con los datos consultados', async () => {

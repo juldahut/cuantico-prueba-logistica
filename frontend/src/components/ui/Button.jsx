@@ -1,8 +1,9 @@
 const VARIANTS = {
-  primary: 'bg-accent text-accent-ink hover:brightness-95 focus-visible:outline-accent',
-  secondary: 'border border-border bg-surface text-ink hover:bg-surface-muted',
-  ghost: 'bg-transparent text-ink hover:bg-surface-muted',
-  destructive: 'bg-danger text-white hover:brightness-95',
+  primary: 'bg-white text-noche hover:bg-lila-palido',
+  accent: 'bg-violeta text-white hover:bg-violeta-profundo',
+  secondary: 'border border-white/35 bg-transparent text-lila-claro hover:bg-white/10',
+  ghost: 'bg-transparent text-lila-claro hover:bg-white/10',
+  destructive: 'bg-error text-noche hover:brightness-95',
 };
 
 export default function Button({
@@ -19,7 +20,7 @@ export default function Button({
       type={type}
       disabled={disabled || loading}
       aria-busy={loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-7 py-2 font-titulo text-sm font-bold transition-colors duration-150 ease-estandar disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTS[variant] ?? VARIANTS.primary} ${className}`}
       {...props}
     >
       {loading && (

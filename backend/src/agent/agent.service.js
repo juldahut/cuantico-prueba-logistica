@@ -41,14 +41,23 @@ const DATE_TOKEN = /\b\d{4}-\d{2}-\d{2}\b/g;
 const NUMBER_TOKEN = /(?<![\w.,-])\d+(?:[.,]\d+)*(?![\w-])/g;
 const THOUSANDS = /^\d{1,3}(?:[.,]\d{3})+$/;
 
+const escapeRegExp = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// `to` es el fin exclusivo del periodo: sirve en formato ISO, pero nadie lo dice
+// como "hasta el 26 de octubre" cuando el ultimo dia incluido es el 25.
+function addDate(acc, key, iso) {
+  acc.dates.add(iso);
+  if (key !== 'to') acc.spokenDates.add(iso);
+}
+
 function collectAllowed(value, key, acc) {
   if (SKIP_KEYS.has(key)) return acc;
   if (value instanceof Date) {
-    if (DATE_KEYS.has(key)) acc.dates.add(value.toISOString().slice(0, 10));
+    if (DATE_KEYS.has(key)) addDate(acc, key, value.toISOString().slice(0, 10));
   } else if (typeof value === 'number') {
     if (!/(^|_)id$/i.test(key || '')) acc.numbers.add(String(value));
   } else if (typeof value === 'string') {
-    if (DATE_KEYS.has(key)) acc.dates.add(value.slice(0, 10));
+    if (DATE_KEYS.has(key)) addDate(acc, key, value.slice(0, 10));
     // Nombres, direcciones, ids y estados se quitan del texto antes de
     // buscar cifras: "Tienda La 80" no es una cifra.
     else if (value.length >= 2) acc.texts.add(value);
@@ -60,32 +69,95 @@ function collectAllowed(value, key, acc) {
   return acc;
 }
 
+// Fechas escritas en español: "25 de octubre", "19 al 25 de octubre de 2026",
+// "19 y 20 de octubre". Cada dia nombrado debe ser una fecha de las tools (con
+// el mes dicho y, si se dice, el año); no se acepta un dia suelto cualquiera.
+const MONTHS = {
+  enero: 1,
+  febrero: 2,
+  marzo: 3,
+  abril: 4,
+  mayo: 5,
+  junio: 6,
+  julio: 7,
+  agosto: 8,
+  septiembre: 9,
+  setiembre: 9,
+  octubre: 10,
+  noviembre: 11,
+  diciembre: 12,
+};
+const SPANISH_DATE = new RegExp(
+  `(?<![\\w.,-])(\\d{1,2})(?:\\s+(?:al|y|a)\\s+(?:el\\s+)?(\\d{1,2}))?\\s+de\\s+(${Object.keys(MONTHS).join('|')})(?:\\s+(?:de|del)\\s+(\\d{4}))?`,
+  'gi',
+);
+
+// "octubre de 2026": un año vale solo asi, pegado a un mes que aparece en las
+// fechas de las tools. Un "2026" suelto (un monto, un conteo) no es un año.
+const MONTH_YEAR = new RegExp(
+  `(?<![\\w.,-])(${Object.keys(MONTHS).join('|')})\\s+(?:de|del)\\s+(\\d{4})(?![\\w-])`,
+  'gi',
+);
+
+function monthYearAllowed(match, allowedDates) {
+  const [, monthName, year] = match;
+  const prefix = `${year}-${String(MONTHS[monthName.toLowerCase()]).padStart(2, '0')}-`;
+  return [...allowedDates].some((d) => d.startsWith(prefix));
+}
+
+function spanishDatesAllowed(match, allowedDates) {
+  const [, day1, day2, monthName, year] = match;
+  const month = String(MONTHS[monthName.toLowerCase()]).padStart(2, '0');
+  return [day1, day2].filter(Boolean).every((day) => {
+    const suffix = `-${month}-${day.padStart(2, '0')}`;
+    return [...allowedDates].some((d) => d.endsWith(suffix) && (!year || d.startsWith(`${year}-`)));
+  });
+}
+
+// "6.334,00" vale lo mismo que "6.334": se quitan decimales en cero de una
+// cifra con separador de miles antes de comparar.
+function normalizeNumber(token) {
+  const withoutZeroCents = token.replace(/[.,]00$/, '');
+  return THOUSANDS.test(withoutZeroCents) || /^\d+$/.test(withoutZeroCents)
+    ? withoutZeroCents.replace(/[.,]/g, '')
+    : token;
+}
+
 function verifyNumbers(reply, toolCalls) {
-  const acc = { numbers: new Set(), dates: new Set(), texts: new Set() };
+  const acc = { numbers: new Set(), dates: new Set(), spokenDates: new Set(), texts: new Set() };
   toolCalls.filter((c) => c.output).forEach((c) => collectAllowed(c.output, null, acc));
 
   let text = reply;
-  for (const t of [...acc.texts].sort((a, b) => b.length - a.length))
-    text = text.split(t).join(' ');
+  // Solo coincidencias de palabra completa, y nunca un texto hecho solo de
+  // cifras: un nombre "99" no puede borrar los "99" de "999999".
+  for (const t of [...acc.texts].sort((a, b) => b.length - a.length)) {
+    if (/^[\d\s.,-]+$/.test(t)) continue;
+    const word = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(t)}(?![\\p{L}\\p{N}_])`, 'gu');
+    text = text.replace(word, ' ');
+  }
 
   const dates = text.match(DATE_TOKEN) || [];
   if (!dates.every((d) => acc.dates.has(d))) return false;
   text = text.replace(DATE_TOKEN, ' ');
 
-  const numbers = (text.match(NUMBER_TOKEN) || []).map((n) =>
-    THOUSANDS.test(n) ? n.replace(/[.,]/g, '') : n,
-  );
+  for (const match of text.matchAll(SPANISH_DATE)) {
+    if (!spanishDatesAllowed(match, acc.spokenDates)) return false;
+  }
+  text = text.replace(SPANISH_DATE, ' ');
+
+  for (const match of text.matchAll(MONTH_YEAR)) {
+    if (!monthYearAllowed(match, acc.spokenDates)) return false;
+  }
+  text = text.replace(MONTH_YEAR, ' ');
+
+  const numbers = (text.match(NUMBER_TOKEN) || []).map(normalizeNumber);
   return numbers.every((n) => acc.numbers.has(n));
 }
 
-function rawDataReply(toolCalls) {
-  const lines = toolCalls
-    .filter((c) => c.output)
-    .map((c) => `- ${c.name}: ${JSON.stringify(c.output)}`);
-  return [
-    'No pude verificar todas las cifras de la respuesta, así que te muestro los datos tal como los devolvieron las herramientas:',
-    ...(lines.length ? lines : ['- (no hubo datos consultados)']),
-  ].join('\n');
+// Sin JSON crudo en el texto: los datos viajan en toolCalls y el frontend arma
+// un resumen legible a partir de ellos.
+function unverifiedReply() {
+  return 'No pude verificar todas las cifras de mi respuesta, así que descarté mi texto. Los datos que devolvieron las consultas están en «Datos consultados».';
 }
 
 function textOf(content) {
@@ -157,6 +229,7 @@ async function runAgent({ user, message, history = [], provider, now = new Date(
     const results = [];
     const uses = response.content.filter((b) => b.type === 'tool_use');
     for (const [index, block] of uses.entries()) {
+      const started = Date.now();
       const {
         output,
         error,
@@ -164,7 +237,14 @@ async function runAgent({ user, message, history = [], provider, now = new Date(
       } = index < MAX_TOOLS_PER_STEP
         ? await executeTool(block.name, block.input, { user, now })
         : { error: 'TOO_MANY_TOOL_CALLS', message: `Maximo ${MAX_TOOLS_PER_STEP} tools por paso.` };
-      toolCalls.push({ name: block.name, input: block.input, output, error });
+      // durationMs: solo informativo, para el panel de datos consultados.
+      toolCalls.push({
+        name: block.name,
+        input: block.input,
+        output,
+        error,
+        durationMs: Date.now() - started,
+      });
       results.push({
         type: 'tool_result',
         tool_use_id: block.id,
@@ -187,7 +267,7 @@ async function runAgent({ user, message, history = [], provider, now = new Date(
   } else {
     reply = textOf(response.content) || 'No tengo una respuesta para eso.';
     verified = verifyNumbers(reply, toolCalls);
-    if (!verified) reply = rawDataReply(toolCalls);
+    if (!verified) reply = unverifiedReply();
   }
 
   return { reply, verified, toolCalls, steps, stopReason, provider: provider.name };

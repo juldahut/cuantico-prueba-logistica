@@ -18,6 +18,8 @@ Registro breve por fase. Solo lo que realmente pasó.
 - F4: si el modelo puede pasar las fechas a la tool de totales, la tool las devuelve y quedan "verificadas". El servidor debe resolver el periodo.
 
 - F6: dotenv 18 imprime un aviso al cargar el .env; se silencia con `quiet: true` para no ensuciar logs ni tests.
+- #29: la verificación de cifras rechazaba respuestas correctas por escribir la fecha en español ("19 al 25 de octubre") o el monto con decimales en cero ("6.334,00"). Ahora se aceptan solo si cada día, mes y año sale de una fecha de las tools.
+- #29: el texto de la respuesta no lleva JSON crudo cuando la verificación falla: los datos viajan en `toolCalls` y el frontend arma el resumen. La CSP no permite `data:` en fuentes, por eso Vite no incrusta archivos (`assetsInlineLimit: 0`).
 
 ## Consultas
 - F1: el borde "8:00 p.m. a 6:00 a.m." no está fijado en el enunciado; se toma [20:00, 06:00).

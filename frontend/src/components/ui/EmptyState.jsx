@@ -1,8 +1,8 @@
 export default function EmptyState({ title = 'Nada por aqui todavia', description, action }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-6 py-12 text-center">
-      <p className="text-sm font-medium text-ink">{title}</p>
-      {description && <p className="max-w-sm text-sm text-ink-muted">{description}</p>}
+    <div className="anim-subir flex flex-col items-center justify-center gap-3 rounded-tarjeta border border-dashed border-lila/25 px-6 py-12 text-center">
+      <h2 className="text-2xl text-lila-claro">{title}</h2>
+      {description && <p className="max-w-md text-lavanda">{description}</p>}
       {action}
     </div>
   );

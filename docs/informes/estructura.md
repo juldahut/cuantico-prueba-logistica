@@ -24,8 +24,12 @@ navegador ──► frontend (React, nginx :5173) ──► API Express (:3001) 
 | `middlewares/` | Autenticación, roles, validación, rate limit, manejo de errores (500 sin detalles internos). |
 | `migrations/`, `seeders/` | Esquema y datos de ejemplo (3 comercios en zonas distintas, 4 usuarios). |
 
-Frontend (`frontend/src`): `features/auth` (login), `features/chat` (chat, mensaje, panel de datos consultados),
-`components/ui` (kit base), `lib/api.js` (cliente HTTP con el formato de error del backend).
+Frontend (`frontend/src`): `features/auth` (login dividido con titular y nodos SVG), `features/chat` (chat, lateral
+colapsable con comercio, zona horaria, rol y preguntas sugeridas, mensaje con insignia Verificado, resumen legible de
+cifras sin verificar, cita de notas de terceros y panel "Datos consultados" estilo consola con JSON colapsable),
+`components/ui` (kit base con la identidad visual de Cuantico: tokens en `index.css`, fuentes autoalojadas con
+`@fontsource`, animaciones solo CSS con `prefers-reduced-motion`), `lib/api.js` (cliente HTTP con el formato de error
+del backend), `lib/format.js` y `lib/summary.js` (presentación de lo que devuelven las tools; nada se recalcula).
 
 ## Modelo de datos
 | Tabla | Propósito | Claves |

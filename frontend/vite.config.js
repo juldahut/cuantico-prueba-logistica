@@ -5,6 +5,8 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { port: 5173 },
+  // La CSP no permite data: en font-src: las fuentes siempre salen como archivos.
+  build: { assetsInlineLimit: 0 },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.js'],

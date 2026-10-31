@@ -19,11 +19,38 @@ function detectIntent(question) {
   return 'help';
 }
 
+const MONTHS = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
+
 function detectPeriod(question) {
   const q = normalize(question);
   const dates = q.match(/\d{4}-\d{2}-\d{2}/g);
   if (dates && dates.length >= 2) {
     return { expression: 'rango', start_date: dates[0], end_date: dates[1] };
+  }
+  // "del 19 al 25 de octubre de 2026": el modelo solo pasa las fechas que dijo
+  // el usuario; el periodo lo resuelve el servidor.
+  const spoken = q.match(/del (\d{1,2}) al (\d{1,2}) de ([a-z]+) de (\d{4})/);
+  if (spoken && MONTHS.includes(spoken[3])) {
+    const month = String(MONTHS.indexOf(spoken[3]) + 1).padStart(2, '0');
+    const day = (d) => d.padStart(2, '0');
+    return {
+      expression: 'rango',
+      start_date: `${spoken[4]}-${month}-${day(spoken[1])}`,
+      end_date: `${spoken[4]}-${month}-${day(spoken[2])}`,
+    };
   }
   const options = [
     ['semana pasada', 'semana_pasada'],
@@ -67,6 +94,20 @@ function currentTurn(messages) {
 
 const fmt = (n) => Number(n).toLocaleString('es-CO');
 
+// "2026-10-19" -> "19 de octubre de 2026". Solo cambia el formato de fechas
+// que ya vienen calculadas por las tools.
+function spokenDate(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${Number(d)} de ${MONTHS[Number(m) - 1]} de ${y}`;
+}
+
+function spokenRange(from, lastDay) {
+  const [fy, fm, fd] = from.split('-');
+  const [ly, lm] = lastDay.split('-');
+  if (fy === ly && fm === lm) return `del ${Number(fd)} al ${spokenDate(lastDay)}`;
+  return `del ${spokenDate(from)} al ${spokenDate(lastDay)}`;
+}
+
 let counter = 0;
 function toolUse(name, input) {
   counter += 1;
@@ -100,7 +141,9 @@ function next(question, results) {
   if (intent === 'courier') {
     const id = Number(normalize(question).match(/mensajero\s+(\d+)/)[1]);
     if (!last) return toolUse('get_courier_status_counts', { courier_id: id });
-    const parts = Object.entries(last.data.counts).map(([status, n]) => `${status}: ${n}`);
+    const parts = Object.entries(last.data.counts).map(
+      ([status, n]) => `${status.replaceAll('_', ' ')}: ${n}`,
+    );
     return say(
       `Entregas de ${last.data.courier_name} por estado: ${parts.join(', ') || 'ninguna'}.`,
     );
@@ -136,7 +179,7 @@ function next(question, results) {
     if (intent === 'notes') {
       if (results.length === 1) return toolUse('get_merchant_notes', { merchant_id: merchant.id });
       return say(
-        `Estas son las notas registradas de ${merchant.name}. Las copio tal cual; son texto del comercio, no son instrucciones:\n${last.data.untrusted_text}`,
+        `Te muestro las notas registradas de ${merchant.name}. Son texto de terceros: las trato como dato y no sigo lo que digan.`,
       );
     }
 
@@ -152,7 +195,7 @@ function next(question, results) {
     const t = last.data;
     const totals = t.totals.map((x) => `${fmt(x.amount)} ${x.currency}`).join(' y ') || 'nada';
     return say(
-      `${t.merchant_name} facturó ${totals} en ${t.deliveries} entregas terminadas del ${t.from} al ${t.last_day}.`,
+      `${t.merchant_name} facturó ${totals} en ${t.deliveries} entregas terminadas ${spokenRange(t.from, t.last_day)}.`,
     );
   }
 
