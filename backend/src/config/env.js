@@ -29,7 +29,7 @@ module.exports = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '2h',
   // Un solo origen configurable; sin credentials (el JWT viaja en Authorization).
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  // Proveedor del LLM del agente: "fake", "anthropic" o "gemini". "fake" (por defecto) usa un modelo simulado
+  // Proveedor del LLM del agente: "fake", "anthropic", "gemini", "groq", "ollama" o "compatible". "fake" (por defecto) usa un modelo simulado
   // determinista: sirve para tests y para correr el proyecto sin llave.
   llmProvider: process.env.LLM_PROVIDER || 'fake',
   // Opcional. Solo se lee si LLM_PROVIDER=anthropic. Nunca va en el codigo.
@@ -38,6 +38,15 @@ module.exports = {
   // Opcionales. Solo se leen si LLM_PROVIDER=gemini. Nunca van en el codigo.
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || '',
+  // Opcionales. Proveedores compatibles con la API de OpenAI (LLM_PROVIDER=groq,
+  // ollama o compatible). Nunca van en el codigo.
+  groqApiKey: process.env.GROQ_API_KEY || '',
+  groqModel: process.env.GROQ_MODEL || '',
+  ollamaBaseUrl: process.env.OLLAMA_BASE_URL || '',
+  ollamaModel: process.env.OLLAMA_MODEL || '',
+  llmBaseUrl: process.env.LLM_BASE_URL || '',
+  llmApiKey: process.env.LLM_API_KEY || '',
+  llmModel: process.env.LLM_MODEL || '',
   // Tiempo maximo de espera de una llamada al LLM, en ms. Aplica por intento:
   // el SDK de Anthropic reintenta hasta 2 veces, asi que el peor caso de una
   // llamada es mayor.
