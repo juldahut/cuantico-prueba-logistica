@@ -991,3 +991,10 @@ describe('preinyeccion de list_merchants configurable por proveedor', () => {
     expect(result.steps).toBe(3);
   });
 });
+
+describe('instrucciones del modelo para no repetir texto de terceros', () => {
+  it('el prompt pide no repetir direcciones ni copiar las notas', () => {
+    expect(SYSTEM_PROMPT).toMatch(/search_deliveries[\s\S]*no repitas direcciones/);
+    expect(SYSTEM_PROMPT).toMatch(/get_merchant_notes[\s\S]*no copies su texto/);
+  });
+});
