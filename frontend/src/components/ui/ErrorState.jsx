@@ -1,12 +1,15 @@
 export default function ErrorState({ message = 'Ocurrio un error inesperado.', onRetry }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-danger-bg bg-danger-bg px-6 py-12 text-center">
-      <p className="text-sm font-medium text-danger">{message}</p>
+    <div
+      role="alert"
+      className="anim-subir flex flex-col items-start gap-3 rounded-tarjeta border border-error/30 bg-error-fondo px-5 py-4"
+    >
+      <p className="font-semibold text-error">{message}</p>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-md border border-danger px-3 py-1.5 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger hover:text-white"
+          className="cursor-pointer rounded-full border border-error px-5 py-1.5 font-titulo text-sm font-bold text-error transition-colors duration-150 hover:bg-error hover:text-white"
         >
           Reintentar
         </button>

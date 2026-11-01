@@ -1,20 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiPost } from '../../lib/api.js';
 import Button from '../../components/ui/Button.jsx';
-import EmptyState from '../../components/ui/EmptyState.jsx';
 import ErrorState from '../../components/ui/ErrorState.jsx';
 import Label from '../../components/ui/Label.jsx';
 import Skeleton from '../../components/ui/Skeleton.jsx';
+import Thinking from '../../components/Thinking.jsx';
+import Wordmark from '../../components/Wordmark.jsx';
 import ChatMessage from './ChatMessage.jsx';
 
 const MAX_MESSAGE = 1000;
 const MAX_HISTORY = 10;
+const ROLES = { admin: 'Administrador', operaciones: 'Operaciones' };
 
-const EXAMPLES = [
-  '¿Cuánto facturó Tienda La 80 la semana pasada?',
-  '¿Qué notas tiene Tienda La 80?',
-  'Busca Calle',
-];
+// Preguntas de ejemplo por tema. Usan el primer comercio del usuario, si tiene.
+function topicsFor(user) {
+  const merchant = user.merchants?.[0]?.name;
+  const of = merchant ? ` ${merchant}` : ' mi comercio';
+  return [
+    {
+      title: 'Facturación',
+      description: 'Cuánto facturó un comercio en un periodo.',
+      questions: [
+        `¿Cuánto facturó${of} la semana pasada?`,
+        `¿Cuánto facturó${of} del 19 al 25 de octubre de 2026?`,
+      ],
+    },
+    {
+      title: 'Mensajeros',
+      description: 'Cuántas entregas tiene un mensajero y en qué estado.',
+      questions: ['Entregas del mensajero 1 por estado'],
+    },
+    {
+      title: 'Entregas y notas',
+      description: 'Busca una entrega por calle o barrio, o lee las notas de un comercio.',
+      questions: ['Busca Calle', `¿Qué notas tiene${of}?`],
+    },
+  ];
+}
 
 let nextId = 0;
 const newId = () => {
@@ -29,6 +51,8 @@ export default function ChatPage({ token, user, onLogout }) {
   const [error, setError] = useState(null);
   const [lastQuestion, setLastQuestion] = useState(null);
   const endRef = useRef(null);
+  const topics = topicsFor(user);
+  const merchants = user.merchants ?? [];
 
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ block: 'end' });
@@ -62,6 +86,7 @@ export default function ChatPage({ token, user, onLogout }) {
           role: 'assistant',
           text: typeof res.reply === 'string' ? res.reply : '',
           verified: res.verified,
+          stopReason: res.stopReason,
           toolCalls: res.toolCalls,
         },
       ]);
@@ -80,94 +105,174 @@ export default function ChatPage({ token, user, onLogout }) {
     send(lastQuestion, { retrying: true });
   }
 
+  function reset() {
+    if (loading) return;
+    setMessages([]);
+    setError(null);
+    setDraft('');
+  }
+
+  const started = messages.length > 0 || loading;
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-6">
-      <header className="mb-4 flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Asistente de operaciones</h1>
-          <p className="text-xs text-ink-muted">
-            {user.email} · {user.role}
-            {user.merchants?.length ? ` · ${user.merchants.map((m) => m.name).join(', ')}` : ''}
-          </p>
+    <div className="flex min-h-screen flex-col bg-white">
+      <header className="sobre-oscuro bg-morado text-white">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <Wordmark />
+            <p className="text-xs text-lavanda">Asistente de operaciones</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {started && (
+              <Button variant="onDark" onClick={reset} disabled={loading}>
+                Nueva conversación
+              </Button>
+            )}
+            <Button variant="onDark" onClick={onLogout}>
+              Salir
+            </Button>
+          </div>
         </div>
-        <Button variant="secondary" onClick={onLogout}>
-          Salir
-        </Button>
+        <div className="linea-marca" aria-hidden="true" />
       </header>
 
-      <section aria-label="Conversación" className="flex-1">
-        {messages.length === 0 && !loading ? (
-          <EmptyState
-            title="Pregunta sobre entregas, costos o comercios"
-            description="Las cifras salen de consultas al sistema; el asistente no las calcula."
-            action={
-              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                {EXAMPLES.map((example) => (
-                  <Button key={example} variant="secondary" onClick={() => send(example)}>
-                    {example}
-                  </Button>
+      <div className="border-b border-borde bg-lila-claro">
+        <p className="mx-auto max-w-4xl px-4 py-2 text-sm text-tinta-suave">
+          <span className="font-semibold">{user.email}</span> · {ROLES[user.role] ?? user.role}
+          {merchants.length > 0 && (
+            <>
+              {' '}
+              · Consultas de{' '}
+              <span className="font-semibold">{merchants.map((m) => m.name).join(', ')}</span>
+              {merchants.length === 1 && merchants[0].timeZone && (
+                <span> (hora de {merchants[0].timeZone})</span>
+              )}
+            </>
+          )}
+        </p>
+      </div>
+
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-6">
+        <h1 className="sr-only">Asistente de operaciones</h1>
+        <section aria-label="Conversación" className="flex-1">
+          {!started ? (
+            <div className="anim-subir">
+              <h2 className="text-[clamp(1.75rem,4vw,2.5rem)] text-tinta">
+                ¿Qué quieres saber de tus entregas?
+              </h2>
+              <p className="mt-3 max-w-xl text-tinta-suave">
+                Escribe tu pregunta como se la harías a una persona. El asistente consulta el
+                sistema y te responde. Solo lee datos: no cambia nada.
+              </p>
+              <ul className="mt-6 grid gap-4 sm:grid-cols-3">
+                {topics.map((topic) => (
+                  <li
+                    key={topic.title}
+                    className="flex flex-col gap-3 rounded-tarjeta border border-borde p-4 shadow-tarjeta"
+                  >
+                    <div>
+                      <h3 className="text-lg text-tinta">{topic.title}</h3>
+                      <p className="text-sm text-tinta-tenue">{topic.description}</p>
+                    </div>
+                    <div className="mt-auto flex flex-col gap-2">
+                      {topic.questions.map((question) => (
+                        <button
+                          key={question}
+                          type="button"
+                          onClick={() => send(question)}
+                          className="cursor-pointer rounded-2xl border border-violeta/30 px-3 py-2 text-left text-sm text-violeta transition-colors duration-150 hover:bg-lila-claro"
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                  </li>
                 ))}
+              </ul>
+              <p className="mt-6 text-sm text-tinta-tenue">
+                <span className="font-semibold text-exito">✓ Verificado</span> significa que las
+                cifras de la respuesta coinciden con los datos del sistema. Bajo cada respuesta
+                puedes abrir «Datos consultados» para ver de dónde salieron.
+              </p>
+            </div>
+          ) : (
+            <ol aria-live="polite" className="flex flex-col gap-5">
+              {messages.map((message) => (
+                <ChatMessage key={message.id} message={message} />
+              ))}
+            </ol>
+          )}
+
+          {loading && (
+            <div className="mt-5 flex flex-col gap-3">
+              <Thinking />
+              <div className="flex flex-col gap-2" aria-hidden="true">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
               </div>
-            }
-          />
-        ) : (
-          <ol aria-live="polite" className="flex flex-col gap-3">
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
-          </ol>
-        )}
+            </div>
+          )}
 
-        {loading && (
-          <div
-            role="status"
-            aria-label="El asistente está respondiendo"
-            className="mt-3 flex flex-col gap-2"
-          >
-            <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-4 w-1/2" />
+          {error && (
+            <div className="mt-5">
+              <ErrorState message={error} onRetry={retry} />
+            </div>
+          )}
+          <div ref={endRef} />
+        </section>
+
+        <form
+          className="sticky bottom-0 mt-4 flex flex-col gap-2 border-t border-borde bg-white pb-3 pt-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            send(draft);
+          }}
+        >
+          {messages.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2" aria-label="Preguntas sugeridas">
+              <span className="text-xs font-semibold text-tinta-tenue">Prueba también:</span>
+              {topics.map((topic) => (
+                <button
+                  key={topic.title}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => send(topic.questions[0])}
+                  className="cursor-pointer rounded-full border border-violeta/30 px-3 py-1 text-xs font-semibold text-violeta transition-colors duration-150 hover:bg-lila-claro disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {topic.title}
+                </button>
+              ))}
+            </div>
+          )}
+          <Label htmlFor="message" className="sr-only">
+            Mensaje
+          </Label>
+          <div className="flex items-end gap-2">
+            <textarea
+              id="message"
+              rows={2}
+              maxLength={MAX_MESSAGE}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  send(draft);
+                }
+              }}
+              placeholder="Escribe tu pregunta, por ejemplo: ¿Cuánto facturó mi comercio la semana pasada?"
+              className="w-full resize-none rounded-3xl border border-borde bg-white px-5 py-3 text-base text-tinta placeholder:text-tinta-tenue focus:border-violeta"
+            />
+            <Button type="submit" loading={loading} disabled={!draft.trim()}>
+              Enviar
+            </Button>
           </div>
-        )}
-
-        {error && (
-          <div className="mt-3">
-            <ErrorState message={error} onRetry={retry} />
-          </div>
-        )}
-        <div ref={endRef} />
-      </section>
-
-      <form
-        className="sticky bottom-0 mt-4 flex flex-col gap-2 bg-canvas pt-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send(draft);
-        }}
-      >
-        <Label htmlFor="message" className="sr-only">
-          Mensaje
-        </Label>
-        <div className="flex gap-2">
-          <textarea
-            id="message"
-            rows={2}
-            maxLength={MAX_MESSAGE}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                send(draft);
-              }
-            }}
-            placeholder="Escribe tu pregunta (Enter para enviar)"
-            className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted"
-          />
-          <Button type="submit" loading={loading} disabled={!draft.trim()}>
-            Enviar
-          </Button>
-        </div>
-      </form>
+          <p className="text-xs text-tinta-tenue">
+            Enter envía · Shift + Enter agrega una línea
+            {draft.length > 800 && ` · ${draft.length}/${MAX_MESSAGE} caracteres`}
+          </p>
+        </form>
+      </main>
     </div>
   );
 }

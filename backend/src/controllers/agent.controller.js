@@ -19,7 +19,18 @@ async function postChat(req, res) {
     // Cada proveedor sabe reconocer los errores de su API (caida, cuota,
     // llave invalida): se responden como 502 sin detalles internos.
     if (provider.isProviderError?.(err)) {
-      throw new HttpError(502, 'AGENT_UNAVAILABLE', 'El asistente no esta disponible ahora.');
+      // Cuota o limite de uso del proveedor (el nivel gratuito es muy bajo): se
+      // dice con claridad, porque reintentar de inmediato no sirve.
+      if (err.status === 429) {
+        throw new HttpError(
+          429,
+          'AGENT_QUOTA',
+          'El proveedor de IA alcanzó su límite de uso. Espera un momento (o usa una llave con más cupo) y vuelve a intentar.',
+        );
+      }
+      throw new HttpError(502, 'AGENT_UNAVAILABLE', 'El asistente no está disponible ahora.', {
+        expose: true,
+      });
     }
     throw err;
   }

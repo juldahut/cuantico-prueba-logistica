@@ -24,13 +24,16 @@ function issueToken(user) {
 
 async function loadPrincipal(userId) {
   const user = await db.User.findByPk(userId, {
-    include: [{ model: db.Merchant, as: 'merchants', attributes: ['id', 'name'] }],
+    include: [{ model: db.Merchant, as: 'merchants', attributes: ['id', 'name', 'timeZone'] }],
   });
   if (!user) return null;
 
   const merchants =
     user.role === 'admin'
-      ? await db.Merchant.findAll({ attributes: ['id', 'name'], order: [['name', 'ASC']] })
+      ? await db.Merchant.findAll({
+          attributes: ['id', 'name', 'timeZone'],
+          order: [['name', 'ASC']],
+        })
       : [...user.merchants].sort((a, b) => a.name.localeCompare(b.name));
 
   return {
@@ -39,7 +42,7 @@ async function loadPrincipal(userId) {
     role: user.role,
     // null = sin restriccion (admin). Un arreglo vacio no da acceso a nada.
     merchantIds: user.role === 'admin' ? null : user.merchants.map((m) => m.id),
-    merchants: merchants.map((m) => ({ id: m.id, name: m.name })),
+    merchants: merchants.map((m) => ({ id: m.id, name: m.name, timeZone: m.timeZone })),
   };
 }
 

@@ -1,9 +1,11 @@
 'use strict';
 
+/* global jest */
 const request = require('supertest');
 const app = require('../src/app');
-const { runAgent, SYSTEM_PROMPT, MAX_STEPS } = require('../src/agent/agent.service');
+const { runAgent, SYSTEM_PROMPT, MAX_STEPS, verifyNumbers } = require('../src/agent/agent.service');
 const { createFakeProvider } = require('../src/agent/providers/fake');
+const { getProvider } = require('../src/agent/providers');
 const { ingestEvent } = require('../src/services/ingestion.service');
 const { sequelize, resetDb, createMerchant, createUser, PICKUP, DROPOFF } = require('./helpers');
 
@@ -131,8 +133,11 @@ describe('agente con el proveedor simulado (fake)', () => {
     });
 
     expect(result.toolCalls.map((c) => c.name)).toEqual(['list_merchants', 'get_merchant_notes']);
-    expect(result.reply).toMatch(/IGNORA TUS INSTRUCCIONES/);
-    expect(result.reply).toMatch(/no son instrucciones/i);
+    // La nota llega como dato en la tool (la UI la muestra como cita); la
+    // respuesta no la repite ni muestra los delimitadores.
+    expect(result.toolCalls[1].output.untrusted_text).toMatch(/IGNORA TUS INSTRUCCIONES/);
+    expect(result.reply).toMatch(/texto de terceros/i);
+    expect(result.reply).not.toMatch(/<<<|>>>/);
     expect(JSON.stringify(result)).not.toMatch(/10334|10\.334/);
     // Las notas nunca van al system prompt.
     for (const call of provider.calls) {
@@ -274,7 +279,9 @@ describe('limites y verificacion de cifras', () => {
 
     expect(result.verified).toBe(false);
     expect(result.reply).not.toMatch(/999/);
-    expect(result.reply).toMatch(/6334/);
+    // Sin JSON crudo en el texto: los datos reales viajan en toolCalls.
+    expect(result.reply).not.toMatch(/[{}"]/);
+    expect(JSON.stringify(result.toolCalls)).toMatch(/6334/);
   });
 
   it('las cifras escritas con separador de miles se verifican', async () => {
@@ -516,6 +523,35 @@ describe('POST /agent/chat', () => {
     }
   });
 
+  it('si el proveedor de IA falla, el mensaje llega claro y sin detalles internos', async () => {
+    const provider = getProvider();
+    const original = provider.isProviderError;
+    provider.isProviderError = () => true;
+    const spy = jest.spyOn(provider, 'createMessage');
+    try {
+      spy.mockRejectedValueOnce(Object.assign(new Error('secreto interno'), { status: 429 }));
+      const quota = await request(app)
+        .post('/agent/chat')
+        .set(opsLa80.auth)
+        .send({ message: 'hola' });
+      expect(quota.status).toBe(429);
+      expect(quota.body.error).toMatchObject({ code: 'AGENT_QUOTA' });
+      expect(quota.body.error.message).toMatch(/límite de uso/);
+
+      spy.mockRejectedValueOnce(Object.assign(new Error('secreto interno'), { status: 503 }));
+      const down = await request(app)
+        .post('/agent/chat')
+        .set(opsLa80.auth)
+        .send({ message: 'hola' });
+      expect(down.status).toBe(502);
+      expect(down.body.error.message).toBe('El asistente no está disponible ahora.');
+      expect(JSON.stringify([quota.body, down.body])).not.toMatch(/secreto/);
+    } finally {
+      spy.mockRestore();
+      provider.isProviderError = original;
+    }
+  });
+
   it('responde con el texto y las tool calls consultadas', async () => {
     const res = await request(app)
       .post('/agent/chat')
@@ -630,5 +666,102 @@ describe('verificacion de cifras: direcciones y fechas', () => {
 
     expect(result.toolCalls[0].output.completed_local_date).toBe('2026-10-21');
     expect(result.verified).toBe(true);
+  });
+});
+
+describe('verificacion de cifras: formatos que usa una respuesta correcta', () => {
+  const totalsCall = () =>
+    toolUse('get_merchant_totals', {
+      merchant_id: la80.id,
+      expression: 'rango',
+      start_date: '2026-10-19',
+      end_date: '2026-10-25',
+    });
+
+  // El total depende de las entregas que crearon los tests anteriores: se lee
+  // de la tool y la respuesta se arma con ese monto (con y sin miles).
+  async function verifiedAfterTotals(buildText) {
+    const probe = await runAgent({
+      user: await principal(opsLa80),
+      message: 'x',
+      provider: scripted([totalsCall(), finalText('ok')]),
+      now: NOW,
+    });
+    const amount = probe.toolCalls[0].output.totals[0].amount;
+    const result = await runAgent({
+      user: await principal(opsLa80),
+      message: 'x',
+      provider: scripted([totalsCall(), finalText(buildText(amount))]),
+      now: NOW,
+    });
+    return result.verified;
+  }
+  const miles = (n) => n.toLocaleString('es-CO');
+
+  it.each([
+    [(a) => `Tienda La 80 facturó $${miles(a)} COP del 19 al 25 de octubre de 2026.`],
+    [(a) => `Tienda La 80 facturó ${miles(a)},00 COP entre el 19 de octubre y el 25 de octubre.`],
+    [(a) => `En octubre de 2026 Tienda La 80 facturó ${a} COP.`],
+  ])('acepta formatos correctos (%#)', async (buildText) => {
+    expect(await verifiedAfterTotals(buildText)).toBe(true);
+  });
+
+  it.each([
+    [(a) => `Tienda La 80 facturó ${miles(a)} COP del 19 al 27 de octubre de 2026.`],
+    [(a) => `Tienda La 80 facturó ${miles(a)} COP el 25 de noviembre.`],
+    [(a) => `Tienda La 80 facturó ${miles(a)} COP del 19 al 25 de octubre de 2025.`],
+    [(a) => `Tienda La 80 facturó ${miles(a + 1)},00 COP.`],
+  ])('rechaza dias, meses, años o montos que no salen de las tools (%#)', async (buildText) => {
+    expect(await verifiedAfterTotals(buildText)).toBe(false);
+  });
+
+  it('el proveedor simulado entiende "del 19 al 25 de octubre de 2026" y responde verificado', async () => {
+    const result = await runAgent({
+      user: await principal(opsLa80),
+      message: '¿Cuánto facturó Tienda La 80 del 19 al 25 de octubre de 2026?',
+      provider: createFakeProvider(),
+      now: NOW,
+    });
+    expect(result.toolCalls[2].input).toMatchObject({
+      expression: 'rango',
+      start_date: '2026-10-19',
+      end_date: '2026-10-25',
+    });
+    expect(result.reply).toMatch(/del 19 al 25 de octubre de 2026/);
+    expect(result.verified).toBe(true);
+    expect(result.toolCalls.every((c) => Number.isInteger(c.durationMs))).toBe(true);
+  });
+});
+
+describe('verificacion de cifras: casos limite de la revision (sin base de datos)', () => {
+  const totals = {
+    name: 'get_merchant_totals',
+    output: {
+      merchant_name: 'Tienda 99',
+      from: '2026-10-19',
+      to: '2026-10-26',
+      last_day: '2026-10-25',
+      deliveries: 4,
+      totals: [{ amount: 6334, currency: 'COP' }],
+    },
+  };
+  const verify = (reply) => verifyNumbers(reply, [totals]);
+
+  it('un año solo vale pegado a un mes de las tools, no como monto ni como conteo', () => {
+    expect(verify('En octubre de 2026 facturó 6.334 COP.')).toBe(true);
+    expect(verify('Facturó 2026 COP.')).toBe(false);
+    expect(verify('Facturó 2.026 COP.')).toBe(false);
+    expect(verify('Hicieron 2026 entregas.')).toBe(false);
+    expect(verify('En noviembre de 2026 facturó 6.334 COP.')).toBe(false);
+  });
+
+  it('el fin exclusivo `to` no vale como día escrito en español', () => {
+    expect(verify('Facturó 6.334 COP del 19 al 25 de octubre.')).toBe(true);
+    expect(verify('Facturó 6.334 COP del 19 al 26 de octubre.')).toBe(false);
+  });
+
+  it('un nombre hecho solo de cifras no borra esas cifras de la respuesta', () => {
+    expect(verify('Tienda 99 facturó 6.334 COP.')).toBe(true);
+    expect(verify('Tienda 99 facturó 999999 COP.')).toBe(false);
   });
 });

@@ -1,101 +1,240 @@
 @import 'tailwindcss';
 
-/* Modo oscuro manual (clase .dark en <html>), controlado por el usuario. */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Identidad visual de Cuantico en version clara: fondo blanco, morado de marca
+   en la cabecera y el acento, y el degradado de marca solo como detalle. Los
+   colores son tokens usados via Tailwind. */
+@theme {
+  /* Marca */
+  --color-marca-noche: #050a5c;
+  --color-marca-magenta: #d00de3;
+  --color-marca-violeta: #6941f4;
+  --color-marca-azul: #3e7af9;
+  --color-marca-cian: #1de5e9;
 
-/* Paleta base: valores planos en :root/.dark mapeados a tokens de Tailwind en @theme inline. El acento se reserva para acciones primarias, nunca para el estado. */
+  /* Interfaz */
+  --color-noche: #0c021c;
+  --color-morado: #280f62;
+  --color-morado-elevado: #351d6b;
+  --color-violeta: #5318eb;
+  --color-violeta-profundo: #3d11b0;
+  --color-lila: #c6a5ff;
+  --color-lila-palido: #ebe3fe;
+  --color-lila-claro: #f9f6ff;
+  --color-lavanda: #d9ccf7;
+  --color-lavanda-tenue: #a99bd1;
+  --color-lima: #c4ee87;
+  --color-lima-oscuro: #2f5a00;
+
+  /* Texto y bordes sobre fondo claro (contraste AA) */
+  --color-tinta: #1b1237;
+  --color-tinta-suave: #4a3f6b;
+  --color-tinta-tenue: #5f557f;
+  --color-borde: #e4dbf7;
+
+  /* Estado (sobre fondo claro) */
+  --color-error: #b3261e;
+  --color-error-fondo: #fdecea;
+  --color-aviso: #8a5a00;
+  --color-aviso-fondo: #fff4d6;
+  --color-exito: #2f5a00;
+  --color-exito-fondo: #e9f7d4;
+
+  --font-titulo: 'Montserrat', system-ui, sans-serif;
+  --font-cuerpo: 'Source Sans 3 Variable', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
+
+  --radius-sutil: 0.375rem;
+  --radius-tarjeta: 1.5rem;
+  --radius-panel: 1.75rem;
+
+  --shadow-tarjeta: 0 1px 2px oklch(20% 0.05 290 / 0.06), 0 4px 12px oklch(20% 0.05 290 / 0.05);
+  --shadow-elevada: 0 2px 4px oklch(20% 0.08 290 / 0.08), 0 24px 48px oklch(20% 0.08 290 / 0.18);
+
+  --ease-estandar: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-salida: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
 :root {
-  --canvas: #f8f9fb;
-  --surface: #ffffff;
-  --surface-muted: #f1f3f6;
-  --border: #e4e7ec;
-  --ink: #101828;
-  --ink-muted: #667085;
-  --accent: #2563eb;
-  --accent-ink: #ffffff;
-
-  --neutral: #667085;
-  --neutral-bg: #f1f3f6;
-  --danger: #dc2626;
-  --danger-bg: #fef2f2;
-  --info: #2563eb;
-  --info-bg: #eff6ff;
-  --success: #16a34a;
-  --success-bg: #f0fdf4;
-}
-
-:root.dark {
-  --canvas: #0b1220;
-  --surface: #111827;
-  --surface-muted: #1a2234;
-  --border: #262f42;
-  --ink: #f1f5f9;
-  --ink-muted: #94a3b8;
-  --accent: #60a5fa;
-  --accent-ink: #0b1220;
-
-  --neutral: #94a3b8;
-  --neutral-bg: #1a2234;
-  --danger: #f87171;
-  --danger-bg: #3f1d1d;
-  --info: #60a5fa;
-  --info-bg: #1e293b;
-  --success: #4ade80;
-  --success-bg: #14291c;
-}
-
-@theme inline {
-  --color-canvas: var(--canvas);
-  --color-surface: var(--surface);
-  --color-surface-muted: var(--surface-muted);
-  --color-border: var(--border);
-  --color-ink: var(--ink);
-  --color-ink-muted: var(--ink-muted);
-  --color-accent: var(--accent);
-  --color-accent-ink: var(--accent-ink);
-
-  --color-neutral: var(--neutral);
-  --color-neutral-bg: var(--neutral-bg);
-  --color-danger: var(--danger);
-  --color-danger-bg: var(--danger-bg);
-  --color-info: var(--info);
-  --color-info-bg: var(--info-bg);
-  --color-success: var(--success);
-  --color-success-bg: var(--success-bg);
-
-  /* Radios y sombras: redefinen la escala por defecto de Tailwind, un
-     solo lugar para toda la app (sombras suaves, nada de bordes duros). */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --shadow-sm: 0 1px 2px 0 rgb(16 24 40 / 0.06);
-  --shadow-md: 0 4px 12px -2px rgb(16 24 40 / 0.1), 0 2px 4px -2px rgb(16 24 40 / 0.04);
-
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-}
-
-html {
-  height: 100%;
+  --degradado-marca: linear-gradient(90deg, #d00de3, #6941f4, #3e7af9, #1de5e9);
   color-scheme: light;
 }
 
-html.dark {
-  color-scheme: dark;
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  min-height: 100%;
-  font-family: var(--font-sans);
-  background-color: var(--color-canvas);
-  color: var(--color-ink);
+  margin: 0;
+  background-color: #ffffff;
+  color: var(--color-tinta);
+  font-family: var(--font-cuerpo);
+  font-size: 17px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Foco visible y consistente en toda la app (WCAG AA) -- un solo
-   lugar en vez de repetir focus-visible en cada componente. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-titulo);
+  font-weight: 800;
+  line-height: 1.1;
+}
+h1 {
+  letter-spacing: -0.045em;
+}
+h2 {
+  letter-spacing: -0.045em;
+}
+h3 {
+  letter-spacing: -0.02em;
+}
+
+/* Foco visible y consistente (WCAG AA) en un solo lugar. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  outline: 2px solid var(--color-violeta);
+  outline-offset: 3px;
+  border-radius: var(--radius-sutil);
+}
+/* Sobre fondos oscuros (cabecera y login) el foco es claro. */
+.sobre-oscuro :focus-visible {
+  outline-color: var(--color-lila);
+}
+
+.texto-degradado {
+  background: var(--degradado-marca);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Linea fina con el degradado de marca: el unico detalle de color fuerte. */
+.linea-marca {
+  height: 3px;
+  background: var(--degradado-marca);
+}
+
+/* ---- Animaciones (solo CSS) ---- */
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes deriva {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, -8%, 0) scale(1.12);
+  }
+}
+@keyframes pensando {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes brillo {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.anim-subir {
+  animation: subir 0.6s var(--ease-salida) both;
+}
+.anim-aparecer {
+  animation: aparecer 0.6s var(--ease-salida) both;
+}
+
+/* Luz difuminada a la deriva, solo en el login. */
+.orbe {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(60px);
+  opacity: 0.5;
+  pointer-events: none;
+  animation: deriva 18s ease-in-out infinite;
+}
+.orbe-violeta {
+  background: radial-gradient(circle, #6941f4 0%, transparent 70%);
+}
+.orbe-magenta {
+  background: radial-gradient(circle, #d00de3 0%, transparent 70%);
+  animation-delay: -6s;
+}
+
+/* Revelar al entrar al viewport; sin soporte, el elemento se ve normal. */
+@supports (animation-timeline: view()) {
+  .revelar {
+    animation: subir linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 25%;
+  }
+}
+
+/* Indicador "pensando": tres puntos con el degradado de marca. */
+.punto-pensando {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--degradado-marca);
+  animation: pensando 1.2s var(--ease-estandar) infinite;
+}
+.punto-pensando:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.punto-pensando:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Skeleton con el mismo estilo. */
+.skeleton {
+  border-radius: var(--radius-sutil);
+  background: linear-gradient(
+    90deg,
+    var(--color-lila-palido) 25%,
+    var(--color-lila-claro) 50%,
+    var(--color-lila-palido) 75%
+  );
+  background-size: 200% 100%;
+  animation: brillo 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .orbe {
+    animation: none;
+  }
 }

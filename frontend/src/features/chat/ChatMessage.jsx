@@ -1,24 +1,60 @@
 import Badge from '../../components/ui/Badge.jsx';
+import { buildSummary, extractNotes, stripMarkers } from '../../lib/summary.js';
+import NoteQuote from './NoteQuote.jsx';
+import Summary from './Summary.jsx';
 import ToolCallsPanel from './ToolCallsPanel.jsx';
+
+// Cortes del agente (limite de pasos, de uso, rechazo): no hubo nada que verificar.
+const ABNORMAL_STOPS = new Set(['max_steps', 'token_limit', 'refusal']);
 
 export default function ChatMessage({ message }) {
   const isUser = message.role === 'user';
+  const notes = isUser ? null : extractNotes(message.toolCalls);
+  const unverified = !isUser && message.verified === false;
+  const verified = !isUser && message.verified === true && !ABNORMAL_STOPS.has(message.stopReason);
+  // Sin confirmar las cifras del texto se muestran los datos directamente; una
+  // busqueda siempre muestra su lista, que es la respuesta.
+  const shown = isUser
+    ? []
+    : buildSummary(message.toolCalls).filter((b) => unverified || b.kind === 'search_deliveries');
 
   return (
-    <li className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <li className={`anim-subir flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+      <span className="px-2 text-xs font-semibold text-tinta-tenue">
+        {isUser ? 'Tú' : 'Asistente'}
+      </span>
       <article
         aria-label={isUser ? 'Tu mensaje' : 'Respuesta del asistente'}
-        className={`max-w-[85%] rounded-lg px-4 py-3 text-sm shadow-sm ${
-          isUser ? 'bg-accent text-accent-ink' : 'border border-border bg-surface text-ink'
+        className={`max-w-[92%] rounded-tarjeta px-5 py-4 sm:max-w-[85%] ${
+          isUser
+            ? 'rounded-tr-md bg-violeta text-white'
+            : 'rounded-tl-md border border-borde bg-lila-claro text-tinta'
         }`}
       >
         {/* Texto plano: React escapa el contenido, nunca se interpreta como HTML. */}
-        <p className="whitespace-pre-wrap break-words">{message.text}</p>
-        {!isUser && message.verified === false && (
-          <Badge tone="danger" className="mt-2">
-            Cifras sin verificar: se muestran los datos crudos
-          </Badge>
+        <p className="whitespace-pre-wrap break-words">{stripMarkers(message.text)}</p>
+        {(verified || unverified) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {verified && (
+              <Badge
+                tone="success"
+                title="Las cifras de esta respuesta coinciden con los datos del sistema"
+              >
+                ✓ Verificado
+              </Badge>
+            )}
+            {unverified && (
+              <Badge
+                tone="warning"
+                title="No se pudo confirmar el texto del asistente; se muestran los datos del sistema"
+              >
+                Cifras sin verificar
+              </Badge>
+            )}
+          </div>
         )}
+        {notes && <NoteQuote {...notes} />}
+        <Summary blocks={shown} />
         {!isUser && <ToolCallsPanel toolCalls={message.toolCalls} />}
       </article>
     </li>

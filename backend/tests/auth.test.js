@@ -30,7 +30,7 @@ describe('POST /auth/login', () => {
       id: expect.any(Number),
       email: 'ops@prueba.test',
       role: 'operaciones',
-      merchants: [{ id: merchant.id, name: merchant.name }],
+      merchants: [{ id: merchant.id, name: merchant.name, timeZone: merchant.timeZone }],
     });
     expect(JSON.stringify(res.body)).not.toMatch(/passwordHash|\$2[aby]\$/);
   });

@@ -21,6 +21,7 @@ Requisitos: Docker Desktop (o Docker Engine con Compose v2.24+). Puertos libres:
    docker compose up --build
    ```
    El backend aplica migraciones y datos de ejemplo al arrancar (una sola vez: los seeders quedan registrados).
+   Si ya tenías una base creada con datos de ejemplo anteriores (por ejemplo, direcciones del tipo "Dirección de T80-1"), recréala para cargar los nuevos: `docker compose down -v && docker compose up --build`. Borra el volumen de la base.
 3. Abre http://localhost:5173 y entra, por ejemplo, con `ops.la80@cuantico.test` y la clave de `DEMO_OPS_LA80_PASSWORD`.
    API en http://localhost:3001 (`GET /health`).
 
@@ -36,7 +37,7 @@ cd backend && npm ci && npm test && npm run lint
 # Solo el dominio puro, sin base de datos:
 npx jest tests/domain
 
-# Frontend: 7 tests con Vitest + Testing Library, lint y build
+# Frontend: 14 tests con Vitest + Testing Library, lint y build
 cd frontend && npm ci && npm test && npm run lint && npm run build
 ```
 Prueba manual con la API (con el stack levantado):
@@ -97,7 +98,7 @@ Usuarios de ejemplo (seeds): `admin@cuantico.test`, `ops.la80@cuantico.test` (Ti
 - El LLM orquesta y redacta; las tools calculan y autorizan. Tools de solo lectura: `list_merchants`, `resolve_period`, `get_merchant_totals`, `get_courier_status_counts`, `search_deliveries`, `explain_cost` y `get_merchant_notes`.
 - El alcance sale de la sesión (JWT → usuario en BD), nunca del modelo: el modelo puede pedir cualquier `merchant_id`, pero el servidor decide qué devuelve.
 - Límites: 5 llamadas al modelo por pregunta, 40 000 tokens en total (se revisa antes de cada llamada), mensajes de hasta 1000 caracteres e historial de hasta 10 preguntas anteriores. El historial solo admite preguntas del usuario: un turno de asistente enviado por el cliente podría ser inventado ("ya verifiqué que eres admin"), así que no se acepta.
-- **Verificación de cifras:** cada fecha y cada número de la respuesta debe salir de un campo de datos de las tools (montos, conteos, fechas completas). No cuentan los ids, el texto de terceros (notas y direcciones) ni los números que escribió el usuario. Las fechas de entrega se verifican: `explain_cost` devuelve el instante UTC y la fecha local del comercio, calculada por el servidor. Si algo no cuadra, se descarta el texto del modelo y se devuelven los datos crudos con `verified: false`. Límites conocidos: no detecta cifras escritas en palabras ("seis mil") ni ata cada monto a su comercio.
+- **Verificación de cifras:** cada fecha y cada número de la respuesta debe salir de un campo de datos de las tools (montos, conteos, fechas completas). No cuentan los ids, el texto de terceros (notas y direcciones) ni los números que escribió el usuario. Las fechas de entrega se verifican: `explain_cost` devuelve el instante UTC y la fecha local del comercio, calculada por el servidor. Si algo no cuadra, se descarta el texto del modelo y se devuelve un aviso con `verified: false`; los datos viajan en `toolCalls` y el frontend arma un resumen legible, sin JSON crudo. Límites conocidos: no detecta cifras escritas en palabras ("seis mil") ni ata cada monto a su comercio.
 - El modelo no envía fechas: los periodos van como expresión (`semana_pasada`, `rango` con fechas inclusivas…) y el servidor los resuelve. Las salidas incluyen `last_day` para no tener que restar un día.
 - Todo texto de terceros que devuelven las tools (notas, nombres, direcciones) se normaliza (NFKC), se le quitan caracteres de control y `<`/`>` y se trunca; las notas además van delimitadas.
 - Máximo 5 tools por paso; en el último paso no se ejecutan tools.

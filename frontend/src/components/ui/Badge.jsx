@@ -1,14 +1,16 @@
 const TONES = {
-  neutral: 'bg-neutral-bg text-neutral',
-  danger: 'bg-danger-bg text-danger',
-  info: 'bg-info-bg text-info',
-  success: 'bg-success-bg text-success',
+  neutral: 'bg-lila-palido text-tinta-suave',
+  danger: 'bg-error-fondo text-error',
+  info: 'bg-lila-palido text-violeta-profundo',
+  success: 'bg-exito-fondo text-exito',
+  warning: 'bg-aviso-fondo text-aviso',
 };
 
-export default function Badge({ tone = 'neutral', className = '', children }) {
+export default function Badge({ tone = 'neutral', className = '', children, ...props }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${TONES[tone] || TONES.neutral} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${TONES[tone] ?? TONES.neutral} ${className}`}
+      {...props}
     >
       {children}
     </span>
