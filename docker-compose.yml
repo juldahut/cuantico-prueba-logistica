@@ -19,24 +19,44 @@ services:
 
   backend:
     build: ./backend
-    command: sh -c "npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all && node src/server.js"
     environment:
       # Modo produccion: sin log SQL (incluiria correos y textos de busqueda).
       NODE_ENV: production
       PORT: 3001
+      # Este compose es de demo: siembra comercios, eventos y usuarios de ejemplo.
+      # El contenedor solo siembra con SEED_DEMO=true; ponlo en false (o quita la
+      # variable en tu propio despliegue) para arrancar sin datos de demo.
+      SEED_DEMO: ${SEED_DEMO:-true}
       DATABASE_URL: postgres://${POSTGRES_USER:-cuantico}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cuantico}
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
       JWT_EXPIRES_IN: 2h
-      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?Define DEMO_ADMIN_PASSWORD en .env}
-      DEMO_OPS_LA80_PASSWORD: ${DEMO_OPS_LA80_PASSWORD:?Define DEMO_OPS_LA80_PASSWORD en .env}
-      DEMO_OPS_FARMACIA_PASSWORD: ${DEMO_OPS_FARMACIA_PASSWORD:?Define DEMO_OPS_FARMACIA_PASSWORD en .env}
-      DEMO_INGEST_PASSWORD: ${DEMO_INGEST_PASSWORD:?Define DEMO_INGEST_PASSWORD en .env}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      DEMO_OPS_LA80_PASSWORD: ${DEMO_OPS_LA80_PASSWORD:-}
+      DEMO_OPS_FARMACIA_PASSWORD: ${DEMO_OPS_FARMACIA_PASSWORD:-}
+      DEMO_INGEST_PASSWORD: ${DEMO_INGEST_PASSWORD:-}
       CORS_ORIGIN: http://localhost:5173
       LLM_PROVIDER: ${LLM_PROVIDER:-fake}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      # Limites y timeouts (opcionales: vacio = valor por defecto del backend,
+      # ver backend/.env.example).
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-}
+      INGEST_RPM: ${INGEST_RPM:-}
+      AGENT_RPM: ${AGENT_RPM:-}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      DB_POOL_MAX: ${DB_POOL_MAX:-}
+      DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-}
+      DB_LOCK_TIMEOUT_MS: ${DB_LOCK_TIMEOUT_MS:-}
+      DB_IDLE_IN_TX_TIMEOUT_MS: ${DB_IDLE_IN_TX_TIMEOUT_MS:-}
     ports:
       # Solo local: la API no queda expuesta a otras maquinas de la red.
       - "127.0.0.1:3001:3001"
@@ -49,6 +69,8 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: http://localhost:3001
+        # El compose es de demostracion: el login muestra la pista de usuarios demo.
+        VITE_DEMO_HINT: ${VITE_DEMO_HINT:-true}
     ports:
       - "127.0.0.1:5173:80"
     depends_on:

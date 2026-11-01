@@ -1,4 +1,4 @@
-import { formatAmount, formatDay, formatInstant, formatStatus } from './format.js';
+import { formatAmount, formatDay, formatInstant, formatRange, formatStatus } from './format.js';
 
 // Los textos de terceros llegan entre delimitadores para el modelo; la
 // interfaz nunca los muestra.
@@ -11,7 +11,6 @@ export function stripMarkers(text) {
 // Nombre en lenguaje comun de lo que consulto el servidor (nunca el nombre
 // interno de la herramienta).
 const TOOL_LABELS = {
-  list_merchants: 'Comercios a los que tienes acceso',
   resolve_period: 'Periodo consultado',
   get_merchant_totals: 'Facturación del periodo',
   get_courier_status_counts: 'Entregas del mensajero por estado',
@@ -22,6 +21,46 @@ const TOOL_LABELS = {
 
 export function toolLabel(name) {
   return TOOL_LABELS[name] ?? 'Consulta al sistema';
+}
+
+// Herramientas de plomeria: el servidor las ejecuta en todas las preguntas y la
+// persona no necesita verlas (ni contarlas) como "datos consultados".
+const HIDDEN_TOOLS = new Set(['list_merchants']);
+
+// Llamadas que si se muestran en la interfaz.
+export function visibleToolCalls(toolCalls) {
+  const calls = (toolCalls ?? []).filter((c) => !HIDDEN_TOOLS.has(c.name));
+  // El periodo ya va en el subtitulo de la tarjeta de totales: solo se muestra
+  // si es lo unico que se consulto.
+  return calls.length > 1 ? calls.filter((c) => c.name !== 'resolve_period') : calls;
+}
+
+// Frase corta de lo que se consulto, para la linea discreta bajo la respuesta:
+// "facturación de Tienda La 80 del 19 al 25 de octubre de 2026".
+function describeCall(call) {
+  const out = call.output ?? {};
+  switch (call.name) {
+    case 'get_merchant_totals':
+      return `facturación de ${out.merchant_name ?? 'un comercio'} ${formatRange(out.from, out.last_day)}`;
+    case 'get_courier_status_counts':
+      return `entregas de ${out.courier_name ?? 'un mensajero'} por estado`;
+    case 'search_deliveries':
+      return `búsqueda de entregas (${out.count ?? 0} ${out.count === 1 ? 'resultado' : 'resultados'})`;
+    case 'explain_cost':
+      return `costo de la entrega ${out.delivery_id ?? ''}`.trim();
+    case 'get_merchant_notes':
+      return `notas de ${out.merchant_name ?? 'un comercio'}`;
+    case 'resolve_period':
+      return `periodo ${formatRange(out.from, out.last_day)}`;
+    default:
+      return toolLabel(call.name).toLowerCase();
+  }
+}
+
+export function describeCalls(toolCalls) {
+  return visibleToolCalls(toolCalls)
+    .filter((c) => !c.error)
+    .map(describeCall);
 }
 
 // Notas del comercio como dato: { merchantName, notes, instructions }.
@@ -59,20 +98,11 @@ const BREAKDOWN_LABELS = {
 // { label, value }. Nunca JSON ni nombres internos.
 export function buildSummary(toolCalls) {
   const blocks = [];
-  for (const call of toolCalls ?? []) {
+  for (const call of visibleToolCalls(toolCalls)) {
     const out = call.output;
     if (!out || call.error) continue;
 
-    if (call.name === 'list_merchants') {
-      blocks.push({
-        kind: call.name,
-        title: toolLabel(call.name),
-        rows: (out.merchants ?? []).map((m) => ({
-          label: String(m.name ?? ''),
-          value: String(m.time_zone ?? ''),
-        })),
-      });
-    } else if (call.name === 'resolve_period') {
+    if (call.name === 'resolve_period') {
       blocks.push({
         kind: call.name,
         title: toolLabel(call.name),

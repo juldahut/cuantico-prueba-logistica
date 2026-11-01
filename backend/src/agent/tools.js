@@ -39,7 +39,7 @@ const TOOL_DEFINITIONS = [
   {
     name: 'list_merchants',
     description:
-      'Lista los comercios que el usuario puede consultar (id, nombre, zona horaria). Úsala para pasar de un nombre de comercio a su id.',
+      'Lista los comercios que el usuario puede consultar (id, nombre, zona horaria). El servidor ya la ejecutó al inicio de la conversación: su resultado viene en el historial y sirve para pasar de un nombre de comercio a su id, sin volver a llamarla.',
     input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
   },
   {
@@ -252,6 +252,8 @@ const handlers = {
       calculation: latest && {
         breakdown: latest.breakdown,
         distance_meters: latest.distanceMeters,
+        // Kilometros calculados por el servidor: el modelo no convierte unidades.
+        distance_km: Number((latest.distanceMeters / 1000).toFixed(3)),
         is_night: latest.isNight,
         reason: latest.reason,
         rules_version: latest.rulesVersion,

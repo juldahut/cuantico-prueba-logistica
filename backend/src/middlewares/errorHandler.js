@@ -3,6 +3,12 @@
 const HttpError = require('../errors/HttpError');
 const { DomainError } = require('../domain');
 
+// Postgres: 55P03 lock_timeout (otra transaccion tiene la entrega) y 57014
+// statement_timeout / consulta cancelada. Son transitorios: se responde 503 con
+// Retry-After para que el emisor reintente (la ingesta es idempotente por
+// eventId) en vez de tratarlo como un fallo permanente.
+const BUSY_DB_CODES = new Set(['55P03', '57014']);
+
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
   let status = res.statusCode && res.statusCode !== 200 ? res.statusCode : 500;
@@ -18,6 +24,14 @@ function errorHandler(err, req, res, next) {
     status = err.status;
   }
 
+  let busy = false;
+  if (!(err instanceof HttpError) && BUSY_DB_CODES.has(err.parent?.code || err.original?.code)) {
+    status = 503;
+    code = 'DB_BUSY';
+    busy = true;
+    res.set('Retry-After', '2');
+  }
+
   if (status >= 500) {
     // Sin el mensaje ni los parametros: un error de BD puede traer datos del
     // cuerpo (direcciones, notas). Basta con el tipo, el codigo y la traza.
@@ -28,8 +42,9 @@ function errorHandler(err, req, res, next) {
   const body = {
     error: {
       // Un 500 nunca expone el mensaje interno (SQL, rutas, stack).
-      message:
-        status >= 500 && !(err instanceof HttpError && err.expose)
+      message: busy
+        ? 'El servicio está ocupado. Reintenta en unos segundos.'
+        : status >= 500 && !(err instanceof HttpError && err.expose)
           ? 'Error interno del servidor'
           : err.message,
       status,

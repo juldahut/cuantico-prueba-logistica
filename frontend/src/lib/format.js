@@ -22,6 +22,15 @@ export function formatDay(iso) {
   });
 }
 
+// "del 19 al 25 de octubre de 2026" (o con los dos meses si cruza de mes o año).
+export function formatRange(from, lastDay) {
+  const a = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(from ?? ''));
+  const b = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(lastDay ?? ''));
+  if (!a || !b) return `del ${formatDay(from)} al ${formatDay(lastDay)}`;
+  if (a[1] === b[1] && a[2] === b[2]) return `del ${Number(a[3])} al ${formatDay(lastDay)}`;
+  return `del ${formatDay(from)} al ${formatDay(lastDay)}`;
+}
+
 export function formatInstant(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';

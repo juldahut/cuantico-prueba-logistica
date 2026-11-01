@@ -5,7 +5,7 @@
 navegador ──► frontend (React, nginx :5173) ──► API Express (:3001) ──► PostgreSQL 18
                                                    │
                                                    ├─ dominio puro (costo, periodos)
-                                                   └─ agente ──► proveedor LLM (fake | Anthropic)
+                                                   └─ agente ──► proveedor LLM (fake | Anthropic | Gemini)
 ```
 - **API monolítica** en capas: rutas → validadores → controladores → servicios → modelos (Sequelize).
 - **Dominio puro** (`backend/src/domain`): funciones sin I/O que la ingesta, las consultas y el agente reutilizan.
@@ -20,16 +20,19 @@ navegador ──► frontend (React, nginx :5173) ──► API Express (:3001) 
 | `services/queries.service.js` | Totales por comercio, conteo por mensajero, auditoría de costo. |
 | `services/search.service.js` | Búsqueda con LIKE escapado, límites y alcance. |
 | `services/auth.service.js`, `scope.js` | Login JWT, carga del usuario y su alcance; filtros por comercio. |
-| `agent/` | `agent.service` (bucle, límites, verificación de cifras), `tools` (7 tools de solo lectura), `providers/` (fake, gemini, anthropic). |
-| `middlewares/` | Autenticación, roles, validación, rate limit, manejo de errores (500 sin detalles internos). |
+| `agent/` | `agent.service` (bucle, límites, verificación de cifras, `list_merchants` preinyectado por el servidor), `tools` (7 tools de solo lectura), `providers/` (fake, gemini, anthropic). |
+| `middlewares/` | Autenticación, roles, validación, rate limit (por cuenta en ingesta y agente), manejo de errores (500 sin detalles internos). |
+| `config/` | Variables de entorno validadas (`env.js`, `parse.js`), conexión de `sequelize-cli` (`config.js`) y límites de pool y timeouts de la API (`dbRuntime.js`). |
 | `migrations/`, `seeders/` | Esquema y datos de ejemplo (3 comercios en zonas distintas, 4 usuarios). |
 
 Frontend (`frontend/src`): tema claro con la identidad de Cuantico (tokens en `index.css`, fuentes autoalojadas con
-`@fontsource`, animaciones solo CSS con `prefers-reduced-motion`). `features/auth` (login dividido: mensaje de
-bienvenida y formulario), `features/chat` (cabecera con la sesión y el comercio; pantalla de inicio que explica para qué
-sirve, con preguntas de ejemplo por tema; mensajes con insignia Verificado; cita de notas de terceros; resumen legible
-de lo consultado y panel plegable "Datos consultados" con nombres comunes, sin JSON ni nombres internos de las tools),
-`components/ui` (kit base), `lib/api.js` (cliente HTTP con el formato de error del backend), `lib/format.js` y
+`@fontsource`, animaciones solo CSS que se detienen con `prefers-reduced-motion`). `features/auth`: login dividido; la
+parte morada lleva una red de nodos animada (`NodesArt`), orbes de luz y un titular con degradado en movimiento.
+`features/chat`: cabecera y franja de sesión/comercio fijas (sticky), pantalla de inicio que explica para qué sirve con
+preguntas de ejemplo por tema, mensajes con insignia "Verificado" (o "Modo simulado" si el proveedor es `fake`), cita de
+notas de terceros y, bajo cada respuesta, una línea discreta "Datos consultados" con "Ver detalle" opcional (se abre sola
+cuando los datos son la respuesta: búsquedas o cifras sin verificar). Nada de JSON ni nombres internos de las tools en la
+interfaz. `components/ui` (kit base), `lib/api.js` (cliente HTTP con el formato de error del backend), `lib/format.js` y
 `lib/summary.js` (presentación de lo que devuelven las tools; nada se recalcula).
 
 ## Modelo de datos

@@ -404,6 +404,115 @@ describe('calculateDeliveryCost', () => {
     });
   });
 
+  describe('redondeo', () => {
+    // 0.0045 grados de latitud = 500 m exactos (haversine redondeado a metros).
+    const NEAR_PICKUP = Object.freeze({ lat: 4.6, lon: -74.08 });
+    const HALF_KM_DROPOFF = Object.freeze({ lat: 4.6045, lon: -74.08 });
+
+    function halfKmDelivery(deliveredAt) {
+      return [
+        ev('h1', 'creada', '2026-01-15T18:00:00Z'),
+        ev('h2', 'recogida', '2026-01-15T18:20:00Z', NEAR_PICKUP),
+        ev('h3', 'entregada', deliveredAt, HALF_KM_DROPOFF),
+      ];
+    }
+
+    it.each([
+      // base x 40 %: 5000 -> 2000 | 5001 -> 2000,4 | 5002 -> 2000,8 | 5003 -> 2001,2
+      [5000, 2000],
+      [5001, 2000],
+      [5002, 2001],
+      [5003, 2001],
+    ])('fallida con base %i cobra %i (40 %% redondeado half-up)', (baseAmount, expected) => {
+      const result = calc(failedDelivery(), BOGOTA, { tariff: { ...TARIFF, baseAmount } });
+
+      expect(result.status).toBe('failed');
+      expect(result.amount).toBe(expected);
+      expect(result.breakdown).toEqual({ base: expected, distance: 0, nightSurcharge: 0 });
+    });
+
+    it('un empate exacto .5 en el total diurno sube (half-up, no a la baja ni al par)', () => {
+      // 500 m x 1201 por km = 600,5 -> subtotal 5000 + 600,5 = 5600,5 -> 5601.
+      // Truncar o redondear al par daria 5600.
+      const result = calc(halfKmDelivery('2026-01-15T19:00:00Z'), BOGOTA, {
+        tariff: { ...TARIFF, perKmAmount: 1201 },
+      });
+
+      expect(result.distanceMeters).toBe(500);
+      expect(result.isNight).toBe(false);
+      expect(result.amount).toBe(5601);
+      // La distancia sola (600,5) tambien sube a 601 y el desglose cuadra.
+      expect(result.breakdown).toEqual({ base: 5000, distance: 601, nightSurcharge: 0 });
+    });
+
+    it('justo por debajo y exactamente en el punto de redondeo diurno', () => {
+      // 500 m x 1200 por km = 600 exactos -> 5600, sin redondeo.
+      // 500 m x 1199 por km = 599,5 -> 5599,5 -> 5600 (tambien empate).
+      const exact = calc(halfKmDelivery('2026-01-15T19:00:00Z'));
+      const lower = calc(halfKmDelivery('2026-01-15T19:00:00Z'), BOGOTA, {
+        tariff: { ...TARIFF, perKmAmount: 1199 },
+      });
+
+      expect(exact.amount).toBe(5600);
+      expect(lower.amount).toBe(5600);
+    });
+
+    it('redondea una sola vez: 6334 de noche con recargo del 15% da 7285 y no 7284', () => {
+      // Subtotal exacto: 5000 + 1112 m x 1200/km = 6334,4.
+      // Un solo redondeo: 6334,4 x 1,15 = 7284,56 -> 7285.
+      // Redondear antes del recargo (6334 x 1,15 = 7284,1) daria 7284; redondear
+      // ademas la distancia (5000 + 1334 = 6334) tambien: la regla es una sola vez, al final.
+      const result = calc(completeDelivery({ deliveredAt: '2026-01-16T01:00:00Z' }));
+
+      expect(result.isNight).toBe(true);
+      expect(result.amount).toBe(7285);
+      expect(result.amount).not.toBe(Math.round(DAY_AMOUNT * 1.15));
+      expect(result.breakdown).toEqual({ base: 5000, distance: 1334, nightSurcharge: 951 });
+    });
+  });
+
+  describe('distancia cero', () => {
+    // Recogida y entrega en el mismo punto: 0 m.
+    function samePointDelivery(deliveredAt) {
+      return [
+        ev('z1', 'creada', '2026-01-15T18:00:00Z'),
+        ev('z2', 'recogida', '2026-01-15T18:20:00Z', DROPOFF),
+        ev('z3', 'entregada', deliveredAt, DROPOFF),
+      ];
+    }
+
+    it('de noche el recargo aplica solo sobre la base', () => {
+      // 02:00Z = 21:00 en Bogota. Base 5000 x 1,15 = 5750 exacto; la tarifa por km
+      // (muy alta a proposito) no influye porque la distancia es 0.
+      const result = calc(samePointDelivery('2026-01-16T02:00:00Z'), BOGOTA, {
+        tariff: { ...TARIFF, perKmAmount: 90000 },
+      });
+
+      expect(result.distanceMeters).toBe(0);
+      expect(result.isNight).toBe(true);
+      expect(result.amount).toBe(5750);
+      expect(result.breakdown).toEqual({ base: 5000, distance: 0, nightSurcharge: 750 });
+    });
+
+    it('de dia cobra solo la base', () => {
+      const result = calc(samePointDelivery('2026-01-15T19:00:00Z'));
+
+      expect(result.distanceMeters).toBe(0);
+      expect(result.amount).toBe(5000);
+      expect(result.breakdown).toEqual({ base: 5000, distance: 0, nightSurcharge: 0 });
+    });
+
+    it('un empate .5 del recargo nocturno sube (half-up)', () => {
+      // 5030 x 1,15 = 5784,5 -> 5785. Redondear al par daria 5784.
+      const result = calc(samePointDelivery('2026-01-16T02:00:00Z'), BOGOTA, {
+        tariff: { ...TARIFF, baseAmount: 5030 },
+      });
+
+      expect(result.amount).toBe(5785);
+      expect(result.breakdown).toEqual({ base: 5030, distance: 0, nightSurcharge: 755 });
+    });
+  });
+
   describe('pureza', () => {
     it('no muta los eventos ni la tarifa de entrada', () => {
       const events = deepFreeze(completeDelivery({ deliveredAt: '2026-01-16T01:00:00Z' }));

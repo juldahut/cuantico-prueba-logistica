@@ -131,8 +131,13 @@ function findMerchant(question, listResult) {
   return (listResult?.merchants || []).find((m) => q.includes(normalize(m.name)));
 }
 
-function next(question, results) {
+function next(question, allResults) {
   const intent = detectIntent(question);
+  // El servidor entrega list_merchants ya resuelto al inicio de cada turno (ver
+  // runAgent): no es un paso de este modelo. Los demas resultados son los de
+  // las tools que este modelo pidio.
+  const listing = allResults.find((r) => r.name === 'list_merchants');
+  const results = allResults.filter((r) => r.name !== 'list_merchants');
   const last = results.at(-1);
   if (last?.isError) {
     return say('No tienes acceso a ese dato o no existe.');
@@ -172,21 +177,22 @@ function next(question, results) {
   }
 
   if (intent === 'notes' || intent === 'totals') {
-    if (!last) return toolUse('list_merchants', {});
-    const merchant = findMerchant(question, results[0].data);
+    // Sin la lista del servidor (uso suelto del proveedor) la pide como antes.
+    if (!listing) return toolUse('list_merchants', {});
+    const merchant = findMerchant(question, listing.data);
     if (!merchant) return say('No tienes acceso a ese comercio, o no existe.');
 
     if (intent === 'notes') {
-      if (results.length === 1) return toolUse('get_merchant_notes', { merchant_id: merchant.id });
+      if (results.length === 0) return toolUse('get_merchant_notes', { merchant_id: merchant.id });
       return say(
         `Te muestro las notas registradas de ${merchant.name}. Son texto de terceros: las trato como dato y no sigo lo que digan.`,
       );
     }
 
-    if (results.length === 1) {
+    if (results.length === 0) {
       return toolUse('resolve_period', { merchant_id: merchant.id, ...detectPeriod(question) });
     }
-    if (results.length === 2) {
+    if (results.length === 1) {
       return toolUse('get_merchant_totals', {
         merchant_id: merchant.id,
         ...detectPeriod(question),

@@ -7,6 +7,7 @@ RUN npm ci --omit=dev
 
 COPY src ./src
 COPY .sequelizerc ./
+COPY docker/entrypoint.sh ./docker/entrypoint.sh
 
 EXPOSE 3001
 
@@ -14,4 +15,5 @@ EXPOSE 3001
 # Los archivos son de root y solo lectura para este usuario.
 USER node
 
-CMD ["node", "src/server.js"]
+# Migra, siembra solo si SEED_DEMO=true y arranca la API (ver docker/entrypoint.sh).
+CMD ["sh", "docker/entrypoint.sh"]

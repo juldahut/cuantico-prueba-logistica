@@ -22,6 +22,10 @@ Registro breve por fase. Solo lo que realmente pasó.
 - #29: el texto de la respuesta no lleva JSON crudo cuando la verificación falla: los datos viajan en `toolCalls` y el frontend arma el resumen. La CSP no permite `data:` en fuentes, por eso Vite no incrusta archivos (`assetsInlineLimit: 0`).
 - #29: `errorHandler` enmascaraba el mensaje de cualquier 5xx, así que el aviso "El asistente no está disponible" nunca llegaba al usuario (veía "Error interno del servidor"). `HttpError` ahora tiene `expose` para mensajes escritos a mano; una cuota agotada del proveedor responde 429 con un texto claro.
 - #29: el nivel gratuito de Gemini permite 5 solicitudes por minuto y 20 por día, y cada pregunta gasta entre 2 y 4. Sirve para una prueba puntual, no para una demostración: usa `LLM_PROVIDER=fake` o una llave con facturación.
+- #31: con `httpOptions.timeout` el SDK de Gemini aborta el fetch y lo que sale es un `AbortError` (DOMException), no un `ApiError`; había que reconocerlo en `isProviderError` para responder 502 y no 500. El de Anthropic sale como `APIConnectionTimeoutError`, que ya era un `APIError`.
+- #31: en nginx, un `add_header` dentro de un `location` anula los de arriba: las cabeceras de seguridad viven en un archivo que se incluye en el `server` y en cada `location` que agrega su propia cabecera.
+- #31: el servidor ejecuta `list_merchants` antes del bucle del agente: con el proveedor simulado baja de 4 a 3 llamadas al modelo (el encargo esperaba 2), y con Gemini real una pregunta típica baja de 3 a 2.
+- #31: los timeouts de PostgreSQL (`statement_timeout`, `lock_timeout`) viven en `config/dbRuntime.js` y no en `config.js`, que también lee `sequelize-cli`: una migración legítima puede tardar más que esos límites.
 
 ## Consultas
 - F1: el borde "8:00 p.m. a 6:00 a.m." no está fijado en el enunciado; se toma [20:00, 06:00).

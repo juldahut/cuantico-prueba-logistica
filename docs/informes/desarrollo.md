@@ -25,10 +25,10 @@ Las decisiones de arquitectura están en `docs/adr/` y los supuestos de negocio 
   confiables.
 
 ## Pruebas
-- **Backend: 160 tests (Jest).**
+- **Backend: más de 250 tests (Jest);** `npm test` imprime la cifra exacta.
   - Dominio, sin base de datos: costo, dinero, distancia, hora local, periodos.
   - Integración contra PostgreSQL: ingesta, acceso, consultas, búsqueda, agente.
-- **Frontend: 7 tests (Vitest + Testing Library).**
+- **Frontend: más de 30 tests (Vitest + Testing Library).**
 - **Caminos críticos cubiertos:**
   - Idempotencia: ×3 y 10 envíos en paralelo; mismo id con contenido distinto.
   - Desorden: 720 permutaciones.
@@ -51,6 +51,6 @@ proyecto de Compose aparte en puertos alternos:
   - Anomalías visibles, `POST /events` con rol de operaciones da 403 y un evento duplicado da 200.
   - Agente con el modelo simulado: totales verificados, notas mostradas como dato y otro comercio no encontrado.
   - Frontend 200 con CSP.
-- **Tests y lint:** backend 160 tests, lint y Prettier en verde. Frontend 7 tests, lint y build en verde.
+- **Tests y lint:** en esa fecha, backend 160 tests, lint y Prettier en verde, y frontend 7 tests, lint y build en verde (cifras de ese día; el conteo actual lo da `npm test`).
 - **Seguridad:** `npm audit --audit-level=high` sin hallazgos en backend ni frontend, y gitleaks v8.24.3 sobre los 14
   commits del historial sin fugas.
