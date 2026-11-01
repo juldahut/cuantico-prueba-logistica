@@ -998,3 +998,73 @@ describe('instrucciones del modelo para no repetir texto de terceros', () => {
     expect(SYSTEM_PROMPT).toMatch(/get_merchant_notes[\s\S]*no copies su texto/);
   });
 });
+
+describe('verificacion de cifras: miles con espacio (estilo ISO de algunos modelos)', () => {
+  const totals = {
+    name: 'get_merchant_totals',
+    output: {
+      merchant_name: 'Tienda La 80',
+      from: '2026-10-19',
+      last_day: '2026-10-25',
+      deliveries: 3,
+      totals: [{ amount: 25800, currency: 'COP' }],
+    },
+  };
+  const verify = (reply) => verifyNumbers(reply, [totals]);
+
+  it.each([
+    ['espacio normal', 'COP 25 800'],
+    ['espacio no separable', 'COP 25 800'],
+    ['espacio fino no separable', 'COP 25 800'],
+    ['con decimales en cero', 'COP 25 800,00'],
+  ])('acepta %s si el numero completo viene de la tool', (_, text) => {
+    expect(verify(`Tienda La 80 facturó ${text} en 3 entregas.`)).toBe(true);
+  });
+
+  it('rechaza un monto con espacios que no coincide, o numeros pegados por error', () => {
+    expect(verify('Tienda La 80 facturó COP 25 801.')).toBe(false);
+    expect(verify('Facturó 25 000 COP.')).toBe(false);
+    // "3 800" no es 25.800 ni 3 entregas + 800: se lee como 3800 y no existe.
+    expect(verify('Hubo 3 800 entregas.')).toBe(false);
+  });
+});
+
+describe('verificacion de cifras: espacios no separables dentro de nombres y cifras', () => {
+  const totals = {
+    name: 'get_merchant_totals',
+    output: {
+      merchant_name: 'Tienda La 80',
+      from: '2026-10-19',
+      last_day: '2026-10-25',
+      deliveries: 3,
+      totals: [{ amount: 25800, currency: 'COP' }],
+    },
+  };
+
+  it('un modelo que escribe todos los espacios como U+202F sigue verificandose', () => {
+    const reply = 'Tienda La 80 facturó **COP 25 800** la semana pasada.';
+    expect(verifyNumbers(reply, [totals])).toBe(true);
+  });
+
+  it('con esos espacios una cifra inventada tampoco pasa', () => {
+    expect(verifyNumbers('Tienda La 80 facturó **COP 99 800**.', [totals])).toBe(false);
+  });
+});
+
+describe('explain_cost: kilometros calculados por el servidor', () => {
+  it('devuelve distance_km junto a distance_meters, para que el modelo no convierta', async () => {
+    const { executeTool } = require('../src/agent/tools');
+    const delivery = await sequelize.models.Delivery.findOne({
+      where: { merchantId: la80.id },
+      order: [['id', 'ASC']],
+    });
+    const result = await executeTool(
+      'explain_cost',
+      { delivery_id: delivery.id },
+      { user: await principal(opsLa80), now: NOW },
+    );
+    const calc = result.output.calculation;
+    expect(calc.distance_km).toBe(calc.distance_meters / 1000);
+    expect(verifyNumbers(`Recorrió ${calc.distance_km} km.`, [result])).toBe(true);
+  });
+});

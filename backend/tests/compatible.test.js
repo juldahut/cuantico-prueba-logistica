@@ -197,7 +197,7 @@ describe('proveedor compatible: errores y configuracion', () => {
     expect(() => createProvider({ llmProvider: 'groq', groqApiKey: '' })).toThrow(/llave/);
     expect(createProvider({ llmProvider: 'groq', groqApiKey: 'k' })).toMatchObject({
       name: 'groq',
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
     });
     expect(createProvider({ llmProvider: 'ollama' })).toMatchObject({ name: 'ollama' });
     expect(() => createProvider({ llmProvider: 'compatible' })).toThrow(/URL base/);

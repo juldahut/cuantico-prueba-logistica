@@ -32,7 +32,7 @@ function createProvider(config) {
         apiKey: config.groqApiKey,
         requireKey: true,
         baseUrl: 'https://api.groq.com/openai/v1',
-        model: config.groqModel || 'llama-3.3-70b-versatile',
+        model: config.groqModel || 'openai/gpt-oss-120b',
         timeoutMs: config.llmTimeoutMs,
       });
     case 'ollama':

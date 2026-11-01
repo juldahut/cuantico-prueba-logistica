@@ -252,6 +252,8 @@ const handlers = {
       calculation: latest && {
         breakdown: latest.breakdown,
         distance_meters: latest.distanceMeters,
+        // Kilometros calculados por el servidor: el modelo no convierte unidades.
+        distance_km: Number((latest.distanceMeters / 1000).toFixed(3)),
         is_night: latest.isNight,
         reason: latest.reason,
         rules_version: latest.rulesVersion,
