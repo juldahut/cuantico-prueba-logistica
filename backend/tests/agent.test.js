@@ -1068,3 +1068,9 @@ describe('explain_cost: kilometros calculados por el servidor', () => {
     expect(verifyNumbers(`Recorrió ${calc.distance_km} km.`, [result])).toBe(true);
   });
 });
+
+describe('instrucciones del modelo: texto plano', () => {
+  it('el prompt pide texto plano, sin Markdown', () => {
+    expect(SYSTEM_PROMPT).toMatch(/texto plano[\s\S]*sin Markdown/);
+  });
+});
