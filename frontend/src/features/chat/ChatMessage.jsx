@@ -1,10 +1,14 @@
 import Badge from '../../components/ui/Badge.jsx';
 import { extractNotes, stripMarkers } from '../../lib/summary.js';
 import NoteQuote from './NoteQuote.jsx';
+import RichText from './RichText.jsx';
 import ToolCallsPanel from './ToolCallsPanel.jsx';
 
 // Cortes del agente (limite de pasos, de uso, rechazo): no hubo nada que verificar.
 const ABNORMAL_STOPS = new Set(['max_steps', 'token_limit', 'deadline', 'refusal']);
+
+// Nombres internos de estados que el modelo a veces copia tal cual ("en_ruta").
+const readable = (text) => text.replaceAll('en_ruta', 'en ruta');
 
 export default function ChatMessage({ message }) {
   const isUser = message.role === 'user';
@@ -27,7 +31,11 @@ export default function ChatMessage({ message }) {
         }`}
       >
         {/* Texto plano: React escapa el contenido, nunca se interpreta como HTML. */}
-        <p className="whitespace-pre-wrap break-words">{stripMarkers(message.text)}</p>
+        {isUser ? (
+          <p className="whitespace-pre-wrap break-words">{message.text}</p>
+        ) : (
+          <RichText text={readable(stripMarkers(message.text))} />
+        )}
         {(verified || unverified || simulated) && (
           <div className="mt-3 flex flex-wrap gap-2">
             {verified && (

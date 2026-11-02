@@ -292,3 +292,34 @@ describe('ChatMessage: datos consultados sin ruido', () => {
     expect(screen.getByRole('figure')).toBeInTheDocument();
   });
 });
+
+describe('ChatMessage: formato de la respuesta del modelo', () => {
+  it('una respuesta con Markdown (negrita y lista) se ve con formato, sin asteriscos', () => {
+    renderMessage({
+      text: 'El mensajero **Ana Rojas** tiene:\n\n- **Entregada:** 2\n- **En ruta:** 1',
+      verified: true,
+      toolCalls: [],
+    });
+    const article = screen.getByRole('article');
+    expect(article.textContent).not.toMatch(/\*\*/);
+    expect(within(article).getAllByRole('listitem')).toHaveLength(2);
+    expect(within(article).getByText('Ana Rojas').tagName).toBe('STRONG');
+  });
+
+  it('el mensaje del usuario se muestra tal cual, sin interpretar formato', () => {
+    render(
+      <ol>
+        <ChatMessage message={{ id: 2, role: 'user', text: 'quiero **todo** ya' }} />
+      </ol>,
+    );
+    expect(screen.getByText('quiero **todo** ya')).toBeInTheDocument();
+  });
+});
+
+describe('ChatMessage: nombres internos', () => {
+  it('muestra "en ruta" y no el nombre interno "en_ruta"', () => {
+    renderMessage({ text: '- entregada: 2\n- en_ruta: 1', verified: true, toolCalls: [] });
+    expect(screen.getByText('en ruta: 1')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/en_ruta/);
+  });
+});
